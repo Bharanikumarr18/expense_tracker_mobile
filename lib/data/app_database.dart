@@ -1,6 +1,4 @@
-import 'dart:io';
-
-import 'package:path_provider/path_provider.dart';
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 
 class AppDatabase {
@@ -18,15 +16,18 @@ class AppDatabase {
   }
 
   Future<String> get dbPath async {
-    final dir = await getApplicationDocumentsDirectory();
-    return '${dir.path}/tracker_mobile.db';
+    if (kIsWeb) {
+      return 'tracker_mobile_web.db';
+    }
+    final dir = await getDatabasesPath();
+    return '$dir/tracker_mobile.db';
   }
 
   Future<Database> _open() async {
     final path = await dbPath;
     return openDatabase(
       path,
-      version: 1,
+      version: 2,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON;');
       },
@@ -34,19 +35,29 @@ class AppDatabase {
         await _createTables(db);
         await _seedDefaults(db);
       },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        await _createTables(db);
+        await _ensureColumns(db);
+        await _seedDefaults(db);
+      },
+      onOpen: (db) async {
+        await _createTables(db);
+        await _ensureColumns(db);
+        await _seedDefaults(db);
+      },
     );
   }
 
   Future<void> _createTables(Database db) async {
     await db.execute('''
-      CREATE TABLE categories (
+      CREATE TABLE IF NOT EXISTS categories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL UNIQUE
       );
     ''');
 
     await db.execute('''
-      CREATE TABLE subcategories (
+      CREATE TABLE IF NOT EXISTS subcategories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         category_id INTEGER NOT NULL,
@@ -56,7 +67,7 @@ class AppDatabase {
     ''');
 
     await db.execute('''
-      CREATE TABLE expenses (
+      CREATE TABLE IF NOT EXISTS expenses (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         category_id INTEGER NOT NULL,
         subcategory_id INTEGER NOT NULL,
@@ -72,14 +83,14 @@ class AppDatabase {
     ''');
 
     await db.execute('''
-      CREATE TABLE income_categories (
+      CREATE TABLE IF NOT EXISTS income_categories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL UNIQUE
       );
     ''');
 
     await db.execute('''
-      CREATE TABLE income_subcategories (
+      CREATE TABLE IF NOT EXISTS income_subcategories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         category_id INTEGER NOT NULL,
@@ -89,7 +100,7 @@ class AppDatabase {
     ''');
 
     await db.execute('''
-      CREATE TABLE income (
+      CREATE TABLE IF NOT EXISTS income (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         category_id INTEGER NOT NULL,
         subcategory_id INTEGER NOT NULL,
@@ -101,7 +112,7 @@ class AppDatabase {
     ''');
 
     await db.execute('''
-      CREATE TABLE appliances (
+      CREATE TABLE IF NOT EXISTS appliances (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         price REAL NOT NULL,
@@ -112,14 +123,14 @@ class AppDatabase {
     ''');
 
     await db.execute('''
-      CREATE TABLE asset_prices (
+      CREATE TABLE IF NOT EXISTS asset_prices (
         key TEXT PRIMARY KEY,
         value REAL NOT NULL
       );
     ''');
 
     await db.execute('''
-      CREATE TABLE metal_assets (
+      CREATE TABLE IF NOT EXISTS metal_assets (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         metal_type TEXT NOT NULL,
         weight_grams REAL NOT NULL,
@@ -128,7 +139,7 @@ class AppDatabase {
     ''');
 
     await db.execute('''
-      CREATE TABLE land_assets (
+      CREATE TABLE IF NOT EXISTS land_assets (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         location TEXT NOT NULL,
         area_size REAL NOT NULL,
@@ -138,7 +149,7 @@ class AppDatabase {
     ''');
 
     await db.execute('''
-      CREATE TABLE fixed_deposits (
+      CREATE TABLE IF NOT EXISTS fixed_deposits (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         principal REAL NOT NULL,
@@ -151,7 +162,7 @@ class AppDatabase {
     ''');
 
     await db.execute('''
-      CREATE TABLE lic_policies (
+      CREATE TABLE IF NOT EXISTS lic_policies (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         policy_name TEXT NOT NULL,
         premium_amount REAL NOT NULL,
@@ -162,8 +173,159 @@ class AppDatabase {
       );
     ''');
 
-    await db.execute('CREATE INDEX idx_expenses_date ON expenses(date);');
-    await db.execute('CREATE INDEX idx_income_date ON income(date);');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_income_date ON income(date);',
+    );
+  }
+
+  Future<void> _ensureColumns(Database db) async {
+    Future<List<Map<String, Object?>>> tableInfo(String table) async {
+      return db.rawQuery('PRAGMA table_info(' + table + ');');
+    }
+
+    Future<bool> hasColumn(String table, String column) async {
+      final info = await tableInfo(table);
+      return info.any((r) => (r['name'] as String?) == column);
+    }
+
+    Future<void> ensure(String table, String column, String definition) async {
+      final exists = await hasColumn(table, column);
+      if (!exists) {
+        await db.execute(
+          'ALTER TABLE ' +
+              table +
+              ' ADD COLUMN ' +
+              column +
+              ' ' +
+              definition +
+              ';',
+        );
+      }
+    }
+
+    await ensure('expenses', 'travel', 'INTEGER DEFAULT 0');
+    await ensure('expenses', 'trip_name', 'TEXT');
+    await ensure('expenses', 'trip_start', 'TEXT');
+    await ensure('expenses', 'trip_end', 'TEXT');
+    await ensure('expenses', 'category_id', 'INTEGER');
+    await ensure('expenses', 'subcategory_id', 'INTEGER');
+
+    await ensure('income', 'category_id', 'INTEGER');
+    await ensure('income', 'subcategory_id', 'INTEGER');
+
+    await ensure('fixed_deposits', 'tenure_days', 'INTEGER DEFAULT 365');
+    await ensure('fixed_deposits', 'status', "TEXT DEFAULT 'active'");
+
+    await ensure('land_assets', 'entry_date', 'TEXT');
+
+    // Compatibility migration for legacy DBs that stored text category columns.
+    Future<int> resolveCategoryId(String name, {required bool income}) async {
+      final categoryTable = income ? 'income_categories' : 'categories';
+      final rows = await db.query(
+        categoryTable,
+        columns: ['id'],
+        where: 'LOWER(name)=LOWER(?)',
+        whereArgs: [name.trim()],
+        limit: 1,
+      );
+      if (rows.isNotEmpty) {
+        return rows.first['id'] as int;
+      }
+      return db.insert(categoryTable, {'name': name.trim()});
+    }
+
+    Future<int> resolveSubcategoryId(
+      int categoryId,
+      String name, {
+      required bool income,
+    }) async {
+      final table = income ? 'income_subcategories' : 'subcategories';
+      final rows = await db.query(
+        table,
+        columns: ['id'],
+        where: 'category_id=? AND LOWER(name)=LOWER(?)',
+        whereArgs: [categoryId, name.trim()],
+        limit: 1,
+      );
+      if (rows.isNotEmpty) {
+        return rows.first['id'] as int;
+      }
+      return db.insert(table, {'name': name.trim(), 'category_id': categoryId});
+    }
+
+    final hasExpenseTextCategory = await hasColumn('expenses', 'category');
+    final hasExpenseTextSubcategory = await hasColumn(
+      'expenses',
+      'subcategory',
+    );
+    if (hasExpenseTextCategory && hasExpenseTextSubcategory) {
+      final rows = await db.query(
+        'expenses',
+        columns: [
+          'id',
+          'category',
+          'subcategory',
+          'category_id',
+          'subcategory_id',
+        ],
+        where:
+            '(category_id IS NULL OR category_id=0 OR subcategory_id IS NULL OR subcategory_id=0) AND category IS NOT NULL AND subcategory IS NOT NULL',
+      );
+      for (final row in rows) {
+        final category = (row['category'] as String?)?.trim() ?? '';
+        final subcategory = (row['subcategory'] as String?)?.trim() ?? '';
+        if (category.isEmpty || subcategory.isEmpty) continue;
+        final categoryId = await resolveCategoryId(category, income: false);
+        final subcategoryId = await resolveSubcategoryId(
+          categoryId,
+          subcategory,
+          income: false,
+        );
+        await db.update(
+          'expenses',
+          {'category_id': categoryId, 'subcategory_id': subcategoryId},
+          where: 'id=?',
+          whereArgs: [row['id']],
+        );
+      }
+    }
+
+    final hasIncomeTextCategory = await hasColumn('income', 'category');
+    final hasIncomeTextSubcategory = await hasColumn('income', 'subcategory');
+    if (hasIncomeTextCategory && hasIncomeTextSubcategory) {
+      final rows = await db.query(
+        'income',
+        columns: [
+          'id',
+          'category',
+          'subcategory',
+          'category_id',
+          'subcategory_id',
+        ],
+        where:
+            '(category_id IS NULL OR category_id=0 OR subcategory_id IS NULL OR subcategory_id=0) AND category IS NOT NULL AND subcategory IS NOT NULL',
+      );
+      for (final row in rows) {
+        final category = (row['category'] as String?)?.trim() ?? '';
+        final subcategory = (row['subcategory'] as String?)?.trim() ?? '';
+        if (category.isEmpty || subcategory.isEmpty) continue;
+        final categoryId = await resolveCategoryId(category, income: true);
+        final subcategoryId = await resolveSubcategoryId(
+          categoryId,
+          subcategory,
+          income: true,
+        );
+        await db.update(
+          'income',
+          {'category_id': categoryId, 'subcategory_id': subcategoryId},
+          where: 'id=?',
+          whereArgs: [row['id']],
+        );
+      }
+    }
   }
 
   Future<void> _seedDefaults(Database db) async {
@@ -259,10 +421,11 @@ class AppDatabase {
   }
 
   Future<int> databaseSizeBytes() async {
-    final file = File(await dbPath);
-    if (!await file.exists()) {
-      return 0;
-    }
-    return file.length();
+    final db = await database;
+    final pageCount =
+        Sqflite.firstIntValue(await db.rawQuery('PRAGMA page_count;')) ?? 0;
+    final pageSize =
+        Sqflite.firstIntValue(await db.rawQuery('PRAGMA page_size;')) ?? 0;
+    return pageCount * pageSize;
   }
 }

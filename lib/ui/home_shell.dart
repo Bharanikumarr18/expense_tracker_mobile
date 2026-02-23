@@ -119,6 +119,7 @@ class _HomeShellState extends State<HomeShell> {
                 selectedIndex: _index,
                 onDestinationSelected: (v) => setState(() => _index = v),
                 labelType: NavigationRailLabelType.all,
+                scrollable: true,
                 destinations: _items
                     .map(
                       (n) => NavigationRailDestination(

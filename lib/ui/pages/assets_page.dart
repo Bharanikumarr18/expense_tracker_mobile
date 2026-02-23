@@ -41,6 +41,7 @@ class _AssetsPageState extends State<AssetsPage> with TickerProviderStateMixin {
   DateTime _licMaturityDate = DateTime.now().add(const Duration(days: 365));
 
   bool _loading = true;
+  String? _error;
   Map<String, double> _totals = const {
     'metal': 0,
     'land': 0,
@@ -97,27 +98,38 @@ class _AssetsPageState extends State<AssetsPage> with TickerProviderStateMixin {
   }
 
   Future<void> _refresh() async {
-    setState(() => _loading = true);
-    final prices = await widget.repo.getAssetPrices();
-    final totals = await widget.repo.getAssetTotals();
-    final metal = await widget.repo.getMetalAssets();
-    final land = await widget.repo.getLandAssets();
-    final fds = await widget.repo.getFixedDeposits();
-    final lic = await widget.repo.getLicPolicies();
-
-    if (!mounted) return;
-
     setState(() {
-      _prices = prices;
-      _goldCtrl.text = (_prices['gold_price'] ?? 0).toStringAsFixed(2);
-      _silverCtrl.text = (_prices['silver_price'] ?? 0).toStringAsFixed(2);
-      _totals = totals;
-      _metalEntries = metal;
-      _landEntries = land;
-      _fdEntries = fds;
-      _licEntries = lic;
-      _loading = false;
+      _loading = true;
+      _error = null;
     });
+    try {
+      final prices = await widget.repo.getAssetPrices();
+      final totals = await widget.repo.getAssetTotals();
+      final metal = await widget.repo.getMetalAssets();
+      final land = await widget.repo.getLandAssets();
+      final fds = await widget.repo.getFixedDeposits();
+      final lic = await widget.repo.getLicPolicies();
+
+      if (!mounted) return;
+
+      setState(() {
+        _prices = prices;
+        _goldCtrl.text = (_prices['gold_price'] ?? 0).toStringAsFixed(2);
+        _silverCtrl.text = (_prices['silver_price'] ?? 0).toStringAsFixed(2);
+        _totals = totals;
+        _metalEntries = metal;
+        _landEntries = land;
+        _fdEntries = fds;
+        _licEntries = lic;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.toString();
+      });
+    }
   }
 
   Future<void> _savePrices() async {
@@ -209,6 +221,27 @@ class _AssetsPageState extends State<AssetsPage> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Assets page failed to load'),
+              const SizedBox(height: 8),
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton(onPressed: _refresh, child: const Text('Retry')),
+            ],
+          ),
+        ),
+      );
+    }
 
     return DefaultTabController(
       length: 4,

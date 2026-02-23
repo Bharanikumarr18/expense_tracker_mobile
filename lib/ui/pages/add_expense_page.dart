@@ -21,6 +21,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
   final _newEventNameCtrl = TextEditingController();
 
   bool _loading = true;
+  String? _error;
   List<Category> _categories = const [];
   List<ExpenseEntry> _entries = const [];
   List<EventSummary> _events = const [];
@@ -79,33 +80,44 @@ class _AddExpensePageState extends State<AddExpensePage> {
   }
 
   Future<void> _refreshAll() async {
-    setState(() => _loading = true);
-    final categories = await widget.repo.getExpenseCategories();
-    final entries = await widget.repo.getExpenses(
-      from: monthStart(_filterMonth),
-      to: monthEnd(_filterMonth),
-    );
-    final events = await widget.repo.getEvents();
-
-    if (!mounted) return;
-
     setState(() {
-      _categories = categories;
-      if (_selectedCategoryId == null && categories.isNotEmpty) {
-        _selectedCategoryId = categories.first.id;
-      }
-      if (_selectedSubcategoryId == null &&
-          _selectedCategory != null &&
-          _selectedCategory!.subcategories.isNotEmpty) {
-        _selectedSubcategoryId = _selectedCategory!.subcategories.first.id;
-      }
-      _entries = entries;
-      _events = events;
-      if (_selectedEvent == null && events.isNotEmpty) {
-        _selectedEvent = events.first;
-      }
-      _loading = false;
+      _loading = true;
+      _error = null;
     });
+    try {
+      final categories = await widget.repo.getExpenseCategories();
+      final entries = await widget.repo.getExpenses(
+        from: monthStart(_filterMonth),
+        to: monthEnd(_filterMonth),
+      );
+      final events = await widget.repo.getEvents();
+
+      if (!mounted) return;
+
+      setState(() {
+        _categories = categories;
+        if (_selectedCategoryId == null && categories.isNotEmpty) {
+          _selectedCategoryId = categories.first.id;
+        }
+        if (_selectedSubcategoryId == null &&
+            _selectedCategory != null &&
+            _selectedCategory!.subcategories.isNotEmpty) {
+          _selectedSubcategoryId = _selectedCategory!.subcategories.first.id;
+        }
+        _entries = entries;
+        _events = events;
+        if (_selectedEvent == null && events.isNotEmpty) {
+          _selectedEvent = events.first;
+        }
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.toString();
+      });
+    }
   }
 
   Future<void> _pickDate({
@@ -307,6 +319,30 @@ class _AddExpensePageState extends State<AddExpensePage> {
   Widget build(BuildContext context) {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Add Expense page failed to load'),
+              const SizedBox(height: 8),
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton(
+                onPressed: _refreshAll,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     final cat = _selectedCategory;

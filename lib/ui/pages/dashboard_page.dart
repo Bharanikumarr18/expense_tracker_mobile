@@ -18,6 +18,7 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   bool _loading = true;
+  String? _error;
   DashboardSummary _summary = const DashboardSummary(
     monthIncome: 0,
     monthExpense: 0,
@@ -59,25 +60,36 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> _refresh() async {
-    setState(() => _loading = true);
-    final now = DateTime.now();
-    final summary = await widget.repo.getDashboardSummary(now);
-    final (from, to) = _range();
-    final cat = await widget.repo.expenseTotalsByCategory(from: from, to: to);
-    final sub = await widget.repo.expenseTotalsBySubcategory(
-      from: from,
-      to: to,
-    );
-    final daily = await widget.repo.dailyBuy(_dailyDate);
-
-    if (!mounted) return;
     setState(() {
-      _summary = summary;
-      _catRows = cat;
-      _subRows = sub;
-      _daily = daily;
-      _loading = false;
+      _loading = true;
+      _error = null;
     });
+    try {
+      final now = DateTime.now();
+      final summary = await widget.repo.getDashboardSummary(now);
+      final (from, to) = _range();
+      final cat = await widget.repo.expenseTotalsByCategory(from: from, to: to);
+      final sub = await widget.repo.expenseTotalsBySubcategory(
+        from: from,
+        to: to,
+      );
+      final daily = await widget.repo.dailyBuy(_dailyDate);
+
+      if (!mounted) return;
+      setState(() {
+        _summary = summary;
+        _catRows = cat;
+        _subRows = sub;
+        _daily = daily;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.toString();
+      });
+    }
   }
 
   Future<void> _pickDate({required bool from}) async {
@@ -108,6 +120,27 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget build(BuildContext context) {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Dashboard failed to load'),
+              const SizedBox(height: 8),
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton(onPressed: _refresh, child: const Text('Retry')),
+            ],
+          ),
+        ),
+      );
     }
 
     final (from, to) = _range();

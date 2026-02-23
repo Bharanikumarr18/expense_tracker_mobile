@@ -22,6 +22,7 @@ class _AppliancesPageState extends State<AppliancesPage> {
   DateTime _purchaseDate = DateTime.now();
   DateTime? _warrantyExpiry;
   bool _loading = true;
+  String? _error;
   List<ApplianceEntry> _entries = const [];
 
   @override
@@ -39,13 +40,24 @@ class _AppliancesPageState extends State<AppliancesPage> {
   }
 
   Future<void> _refresh() async {
-    setState(() => _loading = true);
-    final rows = await widget.repo.getAppliances();
-    if (!mounted) return;
     setState(() {
-      _entries = rows;
-      _loading = false;
+      _loading = true;
+      _error = null;
     });
+    try {
+      final rows = await widget.repo.getAppliances();
+      if (!mounted) return;
+      setState(() {
+        _entries = rows;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.toString();
+      });
+    }
   }
 
   Future<void> _pickDate({
@@ -103,6 +115,27 @@ class _AppliancesPageState extends State<AppliancesPage> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Appliances page failed to load'),
+              const SizedBox(height: 8),
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton(onPressed: _refresh, child: const Text('Retry')),
+            ],
+          ),
+        ),
+      );
+    }
 
     return ListView(
       padding: const EdgeInsets.all(12),

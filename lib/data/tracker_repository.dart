@@ -21,7 +21,16 @@ class TrackerRepository {
     if (value is DateTime) {
       return value;
     }
-    return DateTime.parse(value as String);
+    final raw = value.toString();
+    try {
+      return DateTime.parse(raw);
+    } catch (_) {
+      try {
+        return parseDateFlexible(raw);
+      } catch (_) {
+        return DateTime.now();
+      }
+    }
   }
 
   double _asDouble(dynamic value) {

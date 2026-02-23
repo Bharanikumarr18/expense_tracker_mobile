@@ -15,6 +15,7 @@ class LongevityPage extends StatefulWidget {
 
 class _LongevityPageState extends State<LongevityPage> {
   bool _loading = true;
+  String? _error;
   Map<String, dynamic> _status = const {};
 
   @override
@@ -32,18 +33,50 @@ class _LongevityPageState extends State<LongevityPage> {
   }
 
   Future<void> _refresh() async {
-    setState(() => _loading = true);
-    final st = await widget.repo.getLongevityStatus();
-    if (!mounted) return;
     setState(() {
-      _status = st;
-      _loading = false;
+      _loading = true;
+      _error = null;
     });
+    try {
+      final st = await widget.repo.getLongevityStatus();
+      if (!mounted) return;
+      setState(() {
+        _status = st;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.toString();
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Longevity page failed to load'),
+              const SizedBox(height: 8),
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton(onPressed: _refresh, child: const Text('Retry')),
+            ],
+          ),
+        ),
+      );
+    }
 
     return ListView(
       padding: const EdgeInsets.all(12),

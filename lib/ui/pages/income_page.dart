@@ -20,6 +20,7 @@ class _IncomePageState extends State<IncomePage> {
   final _newSubCtrl = TextEditingController();
 
   bool _loading = true;
+  String? _error;
   List<Category> _categories = const [];
   List<IncomeEntry> _entries = const [];
 
@@ -67,33 +68,44 @@ class _IncomePageState extends State<IncomePage> {
   }
 
   Future<void> _refresh() async {
-    setState(() => _loading = true);
-    final categories = await widget.repo.getIncomeCategories();
-    final entries = await widget.repo.getIncomes(
-      from: monthStart(_filterMonth),
-      to: monthEnd(_filterMonth),
-    );
-    final catTotals = await widget.repo.incomeTotalsByCategory(
-      from: monthStart(_filterMonth),
-      to: monthEnd(_filterMonth),
-    );
-    final subTotals = await widget.repo.incomeTotalsBySubcategory(
-      from: monthStart(_filterMonth),
-      to: monthEnd(_filterMonth),
-    );
-
-    if (!mounted) return;
     setState(() {
-      _categories = categories;
-      _categoryId ??= categories.isNotEmpty ? categories.first.id : null;
-      _subId ??= _selectedCategory?.subcategories.isNotEmpty == true
-          ? _selectedCategory!.subcategories.first.id
-          : null;
-      _entries = entries;
-      _catTotals = catTotals;
-      _subTotals = subTotals;
-      _loading = false;
+      _loading = true;
+      _error = null;
     });
+    try {
+      final categories = await widget.repo.getIncomeCategories();
+      final entries = await widget.repo.getIncomes(
+        from: monthStart(_filterMonth),
+        to: monthEnd(_filterMonth),
+      );
+      final catTotals = await widget.repo.incomeTotalsByCategory(
+        from: monthStart(_filterMonth),
+        to: monthEnd(_filterMonth),
+      );
+      final subTotals = await widget.repo.incomeTotalsBySubcategory(
+        from: monthStart(_filterMonth),
+        to: monthEnd(_filterMonth),
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _categories = categories;
+        _categoryId ??= categories.isNotEmpty ? categories.first.id : null;
+        _subId ??= _selectedCategory?.subcategories.isNotEmpty == true
+            ? _selectedCategory!.subcategories.first.id
+            : null;
+        _entries = entries;
+        _catTotals = catTotals;
+        _subTotals = subTotals;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.toString();
+      });
+    }
   }
 
   Future<void> _pickDate({
@@ -224,6 +236,27 @@ class _IncomePageState extends State<IncomePage> {
   Widget build(BuildContext context) {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Income page failed to load'),
+              const SizedBox(height: 8),
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton(onPressed: _refresh, child: const Text('Retry')),
+            ],
+          ),
+        ),
+      );
     }
 
     final subs = _selectedCategory?.subcategories ?? const <Subcategory>[];

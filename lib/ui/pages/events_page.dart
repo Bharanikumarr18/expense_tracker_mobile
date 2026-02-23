@@ -16,6 +16,7 @@ class EventsPage extends StatefulWidget {
 
 class _EventsPageState extends State<EventsPage> {
   bool _loading = true;
+  String? _error;
   List<EventSummary> _events = const [];
   EventSummary? _selected;
   List<ExpenseEntry> _entries = const [];
@@ -27,27 +28,38 @@ class _EventsPageState extends State<EventsPage> {
   }
 
   Future<void> _refresh() async {
-    setState(() => _loading = true);
-    final events = await widget.repo.getEvents();
-    EventSummary? selected = _selected;
-    if (selected != null) {
-      selected = events
-          .where((e) => e.key == selected!.key)
-          .cast<EventSummary?>()
-          .firstWhere((e) => e != null, orElse: () => null);
-    }
-    selected ??= events.isNotEmpty ? events.first : null;
-    final entries = selected == null
-        ? const <ExpenseEntry>[]
-        : await widget.repo.getEventEntries(selected);
-
-    if (!mounted) return;
     setState(() {
-      _events = events;
-      _selected = selected;
-      _entries = entries;
-      _loading = false;
+      _loading = true;
+      _error = null;
     });
+    try {
+      final events = await widget.repo.getEvents();
+      EventSummary? selected = _selected;
+      if (selected != null) {
+        selected = events
+            .where((e) => e.key == selected!.key)
+            .cast<EventSummary?>()
+            .firstWhere((e) => e != null, orElse: () => null);
+      }
+      selected ??= events.isNotEmpty ? events.first : null;
+      final entries = selected == null
+          ? const <ExpenseEntry>[]
+          : await widget.repo.getEventEntries(selected);
+
+      if (!mounted) return;
+      setState(() {
+        _events = events;
+        _selected = selected;
+        _entries = entries;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.toString();
+      });
+    }
   }
 
   Future<void> _editEvent(EventSummary event) async {
@@ -131,6 +143,27 @@ class _EventsPageState extends State<EventsPage> {
   Widget build(BuildContext context) {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Events page failed to load'),
+              const SizedBox(height: 8),
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton(onPressed: _refresh, child: const Text('Retry')),
+            ],
+          ),
+        ),
+      );
     }
 
     return ListView(

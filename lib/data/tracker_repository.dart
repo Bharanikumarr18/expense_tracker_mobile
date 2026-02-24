@@ -109,6 +109,94 @@ class TrackerRepository {
     }, conflictAlgorithm: ConflictAlgorithm.abort);
   }
 
+  Future<void> renameExpenseCategory(int categoryId, String newName) async {
+    final db = await _db;
+    final trimmed = newName.trim();
+    if (trimmed.isEmpty) {
+      throw Exception('Category name cannot be empty');
+    }
+    final exists = await db.query(
+      'categories',
+      columns: ['id'],
+      where: 'LOWER(name)=LOWER(?) AND id<>?',
+      whereArgs: [trimmed, categoryId],
+      limit: 1,
+    );
+    if (exists.isNotEmpty) {
+      throw Exception('Category name already exists');
+    }
+    await db.update(
+      'categories',
+      {'name': trimmed},
+      where: 'id=?',
+      whereArgs: [categoryId],
+    );
+  }
+
+  Future<void> renameExpenseSubcategory(int subId, String newName) async {
+    final db = await _db;
+    final trimmed = newName.trim();
+    if (trimmed.isEmpty) {
+      throw Exception('Subcategory name cannot be empty');
+    }
+    final row = await db.query(
+      'subcategories',
+      columns: ['category_id'],
+      where: 'id=?',
+      whereArgs: [subId],
+      limit: 1,
+    );
+    if (row.isEmpty) {
+      throw Exception('Subcategory not found');
+    }
+    final categoryId = row.first['category_id'] as int;
+    final exists = await db.query(
+      'subcategories',
+      columns: ['id'],
+      where: 'LOWER(name)=LOWER(?) AND category_id=? AND id<>?',
+      whereArgs: [trimmed, categoryId, subId],
+      limit: 1,
+    );
+    if (exists.isNotEmpty) {
+      throw Exception('Subcategory already exists in this category');
+    }
+    await db.update(
+      'subcategories',
+      {'name': trimmed},
+      where: 'id=?',
+      whereArgs: [subId],
+    );
+  }
+
+  Future<void> deleteExpenseSubcategory(int subId) async {
+    final db = await _db;
+    await db.transaction((txn) async {
+      await txn.delete(
+        'expenses',
+        where: 'subcategory_id=?',
+        whereArgs: [subId],
+      );
+      await txn.delete('subcategories', where: 'id=?', whereArgs: [subId]);
+    });
+  }
+
+  Future<void> deleteExpenseCategory(int categoryId) async {
+    final db = await _db;
+    await db.transaction((txn) async {
+      await txn.delete(
+        'expenses',
+        where: 'category_id=?',
+        whereArgs: [categoryId],
+      );
+      await txn.delete(
+        'subcategories',
+        where: 'category_id=?',
+        whereArgs: [categoryId],
+      );
+      await txn.delete('categories', where: 'id=?', whereArgs: [categoryId]);
+    });
+  }
+
   Future<int> addIncomeCategory(String name) async {
     final db = await _db;
     return db.insert('income_categories', {
@@ -122,6 +210,98 @@ class TrackerRepository {
       'name': name.trim(),
       'category_id': categoryId,
     }, conflictAlgorithm: ConflictAlgorithm.abort);
+  }
+
+  Future<void> renameIncomeCategory(int categoryId, String newName) async {
+    final db = await _db;
+    final trimmed = newName.trim();
+    if (trimmed.isEmpty) {
+      throw Exception('Category name cannot be empty');
+    }
+    final exists = await db.query(
+      'income_categories',
+      columns: ['id'],
+      where: 'LOWER(name)=LOWER(?) AND id<>?',
+      whereArgs: [trimmed, categoryId],
+      limit: 1,
+    );
+    if (exists.isNotEmpty) {
+      throw Exception('Category name already exists');
+    }
+    await db.update(
+      'income_categories',
+      {'name': trimmed},
+      where: 'id=?',
+      whereArgs: [categoryId],
+    );
+  }
+
+  Future<void> renameIncomeSubcategory(int subId, String newName) async {
+    final db = await _db;
+    final trimmed = newName.trim();
+    if (trimmed.isEmpty) {
+      throw Exception('Subcategory name cannot be empty');
+    }
+    final row = await db.query(
+      'income_subcategories',
+      columns: ['category_id'],
+      where: 'id=?',
+      whereArgs: [subId],
+      limit: 1,
+    );
+    if (row.isEmpty) {
+      throw Exception('Subcategory not found');
+    }
+    final categoryId = row.first['category_id'] as int;
+    final exists = await db.query(
+      'income_subcategories',
+      columns: ['id'],
+      where: 'LOWER(name)=LOWER(?) AND category_id=? AND id<>?',
+      whereArgs: [trimmed, categoryId, subId],
+      limit: 1,
+    );
+    if (exists.isNotEmpty) {
+      throw Exception('Subcategory already exists in this category');
+    }
+    await db.update(
+      'income_subcategories',
+      {'name': trimmed},
+      where: 'id=?',
+      whereArgs: [subId],
+    );
+  }
+
+  Future<void> deleteIncomeSubcategory(int subId) async {
+    final db = await _db;
+    await db.transaction((txn) async {
+      await txn.delete('income', where: 'subcategory_id=?', whereArgs: [subId]);
+      await txn.delete(
+        'income_subcategories',
+        where: 'id=?',
+        whereArgs: [subId],
+      );
+    });
+  }
+
+  Future<void> deleteIncomeCategory(int categoryId) async {
+    final db = await _db;
+    await db.transaction((txn) async {
+      await txn.delete(
+        'income',
+        where: 'category_id=?',
+        whereArgs: [categoryId],
+      );
+      await txn.delete(
+        'income_subcategories',
+        where: 'category_id=?',
+        whereArgs: [categoryId],
+      );
+      await txn.delete(
+        'income_categories',
+        where: 'id=?',
+        whereArgs: [categoryId],
+      );
+    });
   }
 
   Future<String?> getAppSetting(String key) async {

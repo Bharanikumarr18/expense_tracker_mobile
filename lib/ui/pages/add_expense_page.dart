@@ -19,6 +19,8 @@ class _AddExpensePageState extends State<AddExpensePage> {
   final _newCatCtrl = TextEditingController();
   final _newSubCtrl = TextEditingController();
   final _newEventNameCtrl = TextEditingController();
+  final _renameCatCtrl = TextEditingController();
+  final _renameSubCtrl = TextEditingController();
 
   bool _loading = true;
   String? _error;
@@ -36,6 +38,11 @@ class _AddExpensePageState extends State<AddExpensePage> {
   bool _singleDayEvent = true;
   DateTime _eventStart = DateTime.now();
   DateTime _eventEnd = DateTime.now();
+
+  int? _advRenameCatId;
+  int? _advRenameSubId;
+  int? _advDeleteCatId;
+  int? _advDeleteSubId;
 
   DateTime _filterMonth = DateTime(
     DateTime.now().year,
@@ -55,6 +62,8 @@ class _AddExpensePageState extends State<AddExpensePage> {
     _newCatCtrl.dispose();
     _newSubCtrl.dispose();
     _newEventNameCtrl.dispose();
+    _renameCatCtrl.dispose();
+    _renameSubCtrl.dispose();
     super.dispose();
   }
 
@@ -108,6 +117,41 @@ class _AddExpensePageState extends State<AddExpensePage> {
         _events = events;
         if (_selectedEvent == null && events.isNotEmpty) {
           _selectedEvent = events.first;
+        }
+
+        _advRenameCatId ??= categories.isNotEmpty ? categories.first.id : null;
+        _advDeleteCatId ??= categories.isNotEmpty ? categories.first.id : null;
+
+        final renameCat = categories
+            .where((c) => c.id == _advRenameCatId)
+            .cast<Category?>()
+            .firstWhere((c) => c != null, orElse: () => null);
+        if (renameCat != null) {
+          _advRenameSubId ??= renameCat.subcategories.isNotEmpty
+              ? renameCat.subcategories.first.id
+              : null;
+          if (_advRenameSubId != null &&
+              !renameCat.subcategories.any((s) => s.id == _advRenameSubId)) {
+            _advRenameSubId = renameCat.subcategories.isNotEmpty
+                ? renameCat.subcategories.first.id
+                : null;
+          }
+        }
+
+        final deleteCat = categories
+            .where((c) => c.id == _advDeleteCatId)
+            .cast<Category?>()
+            .firstWhere((c) => c != null, orElse: () => null);
+        if (deleteCat != null) {
+          _advDeleteSubId ??= deleteCat.subcategories.isNotEmpty
+              ? deleteCat.subcategories.first.id
+              : null;
+          if (_advDeleteSubId != null &&
+              !deleteCat.subcategories.any((s) => s.id == _advDeleteSubId)) {
+            _advDeleteSubId = deleteCat.subcategories.isNotEmpty
+                ? deleteCat.subcategories.first.id
+                : null;
+          }
         }
         _loading = false;
       });
@@ -312,6 +356,113 @@ class _AddExpensePageState extends State<AddExpensePage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Subcategory add failed: $e')));
+    }
+  }
+
+  Future<bool> _confirmDelete(String title, String message) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
+  Future<void> _renameCategory() async {
+    final id = _advRenameCatId;
+    final name = _renameCatCtrl.text.trim();
+    if (id == null || name.isEmpty) return;
+    try {
+      await widget.repo.renameExpenseCategory(id, name);
+      _renameCatCtrl.clear();
+      await _refreshAll();
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Category renamed')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Rename failed: $e')));
+    }
+  }
+
+  Future<void> _renameSubcategory() async {
+    final id = _advRenameSubId;
+    final name = _renameSubCtrl.text.trim();
+    if (id == null || name.isEmpty) return;
+    try {
+      await widget.repo.renameExpenseSubcategory(id, name);
+      _renameSubCtrl.clear();
+      await _refreshAll();
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Subcategory renamed')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Rename failed: $e')));
+    }
+  }
+
+  Future<void> _deleteSubcategory() async {
+    final id = _advDeleteSubId;
+    if (id == null) return;
+    final ok = await _confirmDelete(
+      'Delete Subcategory?',
+      'This removes all expenses under this subcategory.',
+    );
+    if (!ok) return;
+    try {
+      await widget.repo.deleteExpenseSubcategory(id);
+      await _refreshAll();
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Subcategory deleted')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
+    }
+  }
+
+  Future<void> _deleteCategory() async {
+    final id = _advDeleteCatId;
+    if (id == null) return;
+    final ok = await _confirmDelete(
+      'Delete Category?',
+      'This removes all expenses and subcategories under this category.',
+    );
+    if (!ok) return;
+    try {
+      await widget.repo.deleteExpenseCategory(id);
+      await _refreshAll();
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Category deleted')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
     }
   }
 
@@ -618,6 +769,190 @@ class _AddExpensePageState extends State<AddExpensePage> {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            const Divider(),
+            const SizedBox(height: 8),
+            Text(
+              'Rename Category',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 6),
+            DropdownButtonFormField<int>(
+              value: _advRenameCatId,
+              decoration: const InputDecoration(labelText: 'Select Category'),
+              items: _categories
+                  .map(
+                    (c) => DropdownMenuItem(value: c.id, child: Text(c.name)),
+                  )
+                  .toList(growable: false),
+              onChanged: (v) => setState(() => _advRenameCatId = v),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _renameCatCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'New category name',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: _renameCategory,
+                  child: const Text('Rename'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Rename Subcategory',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 6),
+            DropdownButtonFormField<int>(
+              value: _advRenameCatId,
+              decoration: const InputDecoration(labelText: 'Parent Category'),
+              items: _categories
+                  .map(
+                    (c) => DropdownMenuItem(value: c.id, child: Text(c.name)),
+                  )
+                  .toList(growable: false),
+              onChanged: (v) {
+                setState(() {
+                  _advRenameCatId = v;
+                  final cat = _categories
+                      .where((c) => c.id == v)
+                      .cast<Category?>()
+                      .firstWhere((c) => c != null, orElse: () => null);
+                  _advRenameSubId = cat?.subcategories.isNotEmpty == true
+                      ? cat!.subcategories.first.id
+                      : null;
+                });
+              },
+            ),
+            const SizedBox(height: 6),
+            DropdownButtonFormField<int>(
+              value: _advRenameSubId,
+              decoration: const InputDecoration(
+                labelText: 'Select Subcategory',
+              ),
+              items:
+                  (_categories
+                          .firstWhere(
+                            (c) => c.id == _advRenameCatId,
+                            orElse: () => const Category(
+                              id: -1,
+                              name: '',
+                              subcategories: [],
+                            ),
+                          )
+                          .subcategories)
+                      .map(
+                        (s) =>
+                            DropdownMenuItem(value: s.id, child: Text(s.name)),
+                      )
+                      .toList(growable: false),
+              onChanged: (v) => setState(() => _advRenameSubId = v),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _renameSubCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'New subcategory name',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: _renameSubcategory,
+                  child: const Text('Rename'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Delete Subcategory',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 6),
+            DropdownButtonFormField<int>(
+              value: _advDeleteCatId,
+              decoration: const InputDecoration(labelText: 'Parent Category'),
+              items: _categories
+                  .map(
+                    (c) => DropdownMenuItem(value: c.id, child: Text(c.name)),
+                  )
+                  .toList(growable: false),
+              onChanged: (v) {
+                setState(() {
+                  _advDeleteCatId = v;
+                  final cat = _categories
+                      .where((c) => c.id == v)
+                      .cast<Category?>()
+                      .firstWhere((c) => c != null, orElse: () => null);
+                  _advDeleteSubId = cat?.subcategories.isNotEmpty == true
+                      ? cat!.subcategories.first.id
+                      : null;
+                });
+              },
+            ),
+            const SizedBox(height: 6),
+            DropdownButtonFormField<int>(
+              value: _advDeleteSubId,
+              decoration: const InputDecoration(
+                labelText: 'Select Subcategory',
+              ),
+              items:
+                  (_categories
+                          .firstWhere(
+                            (c) => c.id == _advDeleteCatId,
+                            orElse: () => const Category(
+                              id: -1,
+                              name: '',
+                              subcategories: [],
+                            ),
+                          )
+                          .subcategories)
+                      .map(
+                        (s) =>
+                            DropdownMenuItem(value: s.id, child: Text(s.name)),
+                      )
+                      .toList(growable: false),
+              onChanged: (v) => setState(() => _advDeleteSubId = v),
+            ),
+            const SizedBox(height: 6),
+            OutlinedButton.icon(
+              onPressed: _deleteSubcategory,
+              icon: const Icon(Icons.delete_outline),
+              label: const Text('Delete Subcategory'),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Delete Category',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 6),
+            DropdownButtonFormField<int>(
+              value: _advDeleteCatId,
+              decoration: const InputDecoration(labelText: 'Select Category'),
+              items: _categories
+                  .map(
+                    (c) => DropdownMenuItem(value: c.id, child: Text(c.name)),
+                  )
+                  .toList(growable: false),
+              onChanged: (v) => setState(() => _advDeleteCatId = v),
+            ),
+            const SizedBox(height: 6),
+            OutlinedButton.icon(
+              onPressed: _deleteCategory,
+              icon: const Icon(Icons.delete_forever_outlined),
+              label: const Text('Delete Category'),
+            ),
           ],
         ),
         const SizedBox(height: 8),
@@ -680,27 +1015,49 @@ class _AddExpensePageState extends State<AddExpensePage> {
                                 '${e.eventName ?? ''} | ${formatIsoDate(e.eventStart ?? e.date)}${(e.eventStart == e.eventEnd) ? '' : ' → ${formatIsoDate(e.eventEnd ?? e.date)}'}',
                               )
                             : null,
-                        trailing: Wrap(
-                          spacing: 8,
-                          children: [
-                            Text(
-                              formatCurrency(e.amount),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
+                        trailing: SizedBox(
+                          width: 120,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                formatCurrency(e.amount),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
-                            ),
-                            IconButton(
-                              onPressed: () => _editEntry(e),
-                              icon: const Icon(Icons.edit_outlined),
-                            ),
-                            IconButton(
-                              onPressed: () async {
-                                await widget.repo.deleteExpense(e.id);
-                                await _refreshAll();
-                              },
-                              icon: const Icon(Icons.delete_outline),
-                            ),
-                          ],
+                              const SizedBox(height: 6),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  IconButton(
+                                    onPressed: () => _editEntry(e),
+                                    icon: const Icon(Icons.edit_outlined),
+                                    iconSize: 18,
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints.tightFor(
+                                      width: 32,
+                                      height: 32,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    onPressed: () async {
+                                      await widget.repo.deleteExpense(e.id);
+                                      await _refreshAll();
+                                    },
+                                    icon: const Icon(Icons.delete_outline),
+                                    iconSize: 18,
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints.tightFor(
+                                      width: 32,
+                                      height: 32,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),

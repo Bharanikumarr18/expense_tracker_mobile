@@ -10,6 +10,7 @@ import 'pages/events_page.dart';
 import 'pages/export_page.dart';
 import 'pages/import_page.dart';
 import 'pages/income_page.dart';
+import 'pages/insights_page.dart';
 import 'pages/longevity_page.dart';
 import 'pages/settings_page.dart';
 
@@ -73,6 +74,11 @@ class _HomeShellState extends State<HomeShell> {
         AssetsPage(repo: widget.repo),
       ),
       _NavItem(
+        'Insights',
+        Icons.insights_outlined,
+        InsightsPage(repo: widget.repo),
+      ),
+      _NavItem(
         'Longevity',
         Icons.shield_outlined,
         LongevityPage(repo: widget.repo),
@@ -88,6 +94,52 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final item = _items[_index];
+    Widget navRail() {
+      return SafeArea(
+        child: SizedBox(
+          width: 220,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 12, 12, 8),
+                child: Text(
+                  'Finance Tracker Mobile',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: Scrollbar(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(8),
+                    itemCount: _items.length,
+                    itemBuilder: (context, i) {
+                      final n = _items[i];
+                      final selected = i == _index;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: ListTile(
+                          dense: true,
+                          selected: selected,
+                          leading: Icon(n.icon),
+                          title: Text(n.title),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          onTap: () => setState(() => _index = i),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     Widget animatedPage(Widget child) {
       return AnimatedSwitcher(
         duration: const Duration(milliseconds: 260),
@@ -133,7 +185,7 @@ class _HomeShellState extends State<HomeShell> {
                 ],
               ),
             ),
-            body: animatedPage(item.page),
+            body: SafeArea(child: animatedPage(item.page)),
           );
         }
 
@@ -141,22 +193,9 @@ class _HomeShellState extends State<HomeShell> {
           appBar: AppBar(title: const Text('Finance Tracker Mobile')),
           body: Row(
             children: [
-              NavigationRail(
-                selectedIndex: _index,
-                onDestinationSelected: (v) => setState(() => _index = v),
-                labelType: NavigationRailLabelType.all,
-                scrollable: true,
-                destinations: _items
-                    .map(
-                      (n) => NavigationRailDestination(
-                        icon: Icon(n.icon),
-                        label: Text(n.title),
-                      ),
-                    )
-                    .toList(growable: false),
-              ),
+              navRail(),
               const VerticalDivider(width: 1),
-              Expanded(child: animatedPage(item.page)),
+              Expanded(child: SafeArea(child: animatedPage(item.page))),
             ],
           ),
         );

@@ -173,6 +173,13 @@ class AppDatabase {
       );
     ''');
 
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS app_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+    ''');
+
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);',
     );

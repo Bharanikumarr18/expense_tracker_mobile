@@ -124,6 +124,32 @@ class TrackerRepository {
     }, conflictAlgorithm: ConflictAlgorithm.abort);
   }
 
+  Future<String?> getAppSetting(String key) async {
+    final db = await _db;
+    final rows = await db.query(
+      'app_settings',
+      columns: ['value'],
+      where: 'key=?',
+      whereArgs: [key],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return rows.first['value'] as String?;
+  }
+
+  Future<void> setAppSetting(String key, String value) async {
+    final db = await _db;
+    await db.insert('app_settings', {
+      'key': key,
+      'value': value,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<void> deleteAppSetting(String key) async {
+    final db = await _db;
+    await db.delete('app_settings', where: 'key=?', whereArgs: [key]);
+  }
+
   Future<int> _resolveCategoryIdByName(
     String name, {
     required bool income,

@@ -326,20 +326,27 @@ class _ExportPageState extends State<ExportPage> {
   }
 
   Future<void> _saveExportCopy(Uint8List bytes, String fileName) async {
-    final custom = await widget.repo.getAppSetting('export_directory');
-    final dir = custom != null && custom.trim().isNotEmpty
-        ? custom.trim()
-        : null;
-    final savedPath = await saveBytesToDirectory(
-      bytes: bytes,
-      fileName: fileName,
-      directoryPath: dir,
-    );
-    if (savedPath == null) return;
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Saved to $savedPath')));
+    try {
+      final custom = await widget.repo.getAppSetting('export_directory');
+      final dir = custom != null && custom.trim().isNotEmpty
+          ? custom.trim()
+          : null;
+      final savedPath = await saveBytesToDirectory(
+        bytes: bytes,
+        fileName: fileName,
+        directoryPath: dir,
+      );
+      if (savedPath == null) return;
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Saved to $savedPath')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Save failed: $e')));
+    }
   }
 
   Future<void> _exportExpense() async {

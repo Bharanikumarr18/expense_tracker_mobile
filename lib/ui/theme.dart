@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class TrackerTheme {
   static const String defaultThemeName = 'Ocean';
@@ -42,11 +43,17 @@ class TrackerTheme {
   }) {
     final base = ThemeData.dark(useMaterial3: true);
 
+    final textTheme = GoogleFonts.manropeTextTheme(base.textTheme);
+
     return base.copyWith(
       colorScheme: base.colorScheme.copyWith(
         primary: accent,
         secondary: secondary,
         surface: surface,
+      ),
+      textTheme: textTheme.apply(
+        bodyColor: Colors.white,
+        displayColor: Colors.white,
       ),
       scaffoldBackgroundColor: bg,
       appBarTheme: AppBarTheme(backgroundColor: surface, elevation: 0),
@@ -91,10 +98,6 @@ class TrackerTheme {
         backgroundColor: const Color(0xFF22293A),
         selectedColor: accent.withOpacity(0.25),
         side: BorderSide(color: Colors.white.withOpacity(0.1)),
-      ),
-      textTheme: base.textTheme.apply(
-        bodyColor: Colors.white,
-        displayColor: Colors.white,
       ),
     );
   }

@@ -8,6 +8,7 @@ import 'package:printing/printing.dart';
 import '../../data/tracker_repository.dart';
 import '../../models/models.dart';
 import '../../utils/formatters.dart';
+import '../../utils/file_saver.dart';
 
 enum ExportMode { monthly, yearly, custom }
 
@@ -324,6 +325,23 @@ class _ExportPageState extends State<ExportPage> {
     await Printing.sharePdf(bytes: bytes, filename: fileName);
   }
 
+  Future<void> _saveExportCopy(Uint8List bytes, String fileName) async {
+    final custom = await widget.repo.getAppSetting('export_directory');
+    final dir = custom != null && custom.trim().isNotEmpty
+        ? custom.trim()
+        : null;
+    final savedPath = await saveBytesToDirectory(
+      bytes: bytes,
+      fileName: fileName,
+      directoryPath: dir,
+    );
+    if (savedPath == null) return;
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Saved to $savedPath')));
+  }
+
   Future<void> _exportExpense() async {
     setState(() => _busy = true);
     final (from, to) = _range(
@@ -345,6 +363,10 @@ class _ExportPageState extends State<ExportPage> {
         })
         .toList(growable: false);
     final bytes = await _buildExpensePdf(rows, from, to);
+    await _saveExportCopy(
+      bytes,
+      'expense_${formatIsoDate(from)}_${formatIsoDate(to)}.pdf',
+    );
     await _shareBytes(
       bytes,
       'expense_${formatIsoDate(from)}_${formatIsoDate(to)}.pdf',
@@ -374,6 +396,10 @@ class _ExportPageState extends State<ExportPage> {
         })
         .toList(growable: false);
     final bytes = await _buildIncomePdf(rows, from, to);
+    await _saveExportCopy(
+      bytes,
+      'income_${formatIsoDate(from)}_${formatIsoDate(to)}.pdf',
+    );
     await _shareBytes(
       bytes,
       'income_${formatIsoDate(from)}_${formatIsoDate(to)}.pdf',
@@ -388,6 +414,10 @@ class _ExportPageState extends State<ExportPage> {
     setState(() => _busy = true);
     final rows = await widget.repo.getEventEntries(event);
     final bytes = await _buildEventPdf(event, rows);
+    await _saveExportCopy(
+      bytes,
+      'event_${event.name}_${formatIsoDate(event.start)}.pdf',
+    );
     await _shareBytes(
       bytes,
       'event_${event.name}_${formatIsoDate(event.start)}.pdf',
@@ -423,6 +453,10 @@ class _ExportPageState extends State<ExportPage> {
     }
 
     final bytes = await _buildSummaryPdf(catRows, subRows, from, to);
+    await _saveExportCopy(
+      bytes,
+      'expense_summary_${formatIsoDate(from)}_${formatIsoDate(to)}.pdf',
+    );
     await _shareBytes(
       bytes,
       'expense_summary_${formatIsoDate(from)}_${formatIsoDate(to)}.pdf',

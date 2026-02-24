@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/tracker_repository.dart';
+import 'app_controller.dart';
 import 'pages/add_expense_page.dart';
 import 'pages/appliances_page.dart';
 import 'pages/assets_page.dart';
@@ -10,11 +11,13 @@ import 'pages/export_page.dart';
 import 'pages/import_page.dart';
 import 'pages/income_page.dart';
 import 'pages/longevity_page.dart';
+import 'pages/settings_page.dart';
 
 class HomeShell extends StatefulWidget {
-  const HomeShell({super.key, required this.repo});
+  const HomeShell({super.key, required this.repo, required this.controller});
 
   final TrackerRepository repo;
+  final AppController controller;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -73,6 +76,11 @@ class _HomeShellState extends State<HomeShell> {
         'Longevity',
         Icons.shield_outlined,
         LongevityPage(repo: widget.repo),
+      ),
+      _NavItem(
+        'Settings',
+        Icons.settings_outlined,
+        SettingsPage(controller: widget.controller),
       ),
     ];
   }

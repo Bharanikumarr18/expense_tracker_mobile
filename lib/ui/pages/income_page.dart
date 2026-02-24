@@ -5,6 +5,8 @@ import '../../models/models.dart';
 import '../../utils/formatters.dart';
 import '../widgets/common_widgets.dart';
 
+enum IncomeFilterMode { monthly, yearly, custom }
+
 class IncomePage extends StatefulWidget {
   const IncomePage({super.key, required this.repo});
 
@@ -32,6 +34,14 @@ class _IncomePageState extends State<IncomePage> {
     DateTime.now().month,
     1,
   );
+  IncomeFilterMode _filterMode = IncomeFilterMode.monthly;
+  int _filterYear = DateTime.now().year;
+  DateTime _filterCustomFrom = DateTime(
+    DateTime.now().year,
+    DateTime.now().month,
+    1,
+  );
+  DateTime _filterCustomTo = DateTime.now();
 
   List<TotalsRow> _catTotals = const [];
   List<TotalsRow> _subTotals = const [];
@@ -67,6 +77,18 @@ class _IncomePageState extends State<IncomePage> {
     return null;
   }
 
+  (DateTime, DateTime) _incomeRange() {
+    switch (_filterMode) {
+      case IncomeFilterMode.monthly:
+        return (monthStart(_filterMonth), monthEnd(_filterMonth));
+      case IncomeFilterMode.yearly:
+        final d = DateTime(_filterYear, 1, 1);
+        return (yearStart(d), yearEnd(d));
+      case IncomeFilterMode.custom:
+        return (_filterCustomFrom, _filterCustomTo);
+    }
+  }
+
   Future<void> _refresh() async {
     setState(() {
       _loading = true;
@@ -74,17 +96,15 @@ class _IncomePageState extends State<IncomePage> {
     });
     try {
       final categories = await widget.repo.getIncomeCategories();
-      final entries = await widget.repo.getIncomes(
-        from: monthStart(_filterMonth),
-        to: monthEnd(_filterMonth),
-      );
+      final (from, to) = _incomeRange();
+      final entries = await widget.repo.getIncomes(from: from, to: to);
       final catTotals = await widget.repo.incomeTotalsByCategory(
-        from: monthStart(_filterMonth),
-        to: monthEnd(_filterMonth),
+        from: from,
+        to: to,
       );
       final subTotals = await widget.repo.incomeTotalsBySubcategory(
-        from: monthStart(_filterMonth),
-        to: monthEnd(_filterMonth),
+        from: from,
+        to: to,
       );
 
       if (!mounted) return;
@@ -464,31 +484,103 @@ class _IncomePageState extends State<IncomePage> {
                 Wrap(
                   spacing: 8,
                   children: [
-                    DropdownButton<DateTime>(
-                      value: _filterMonth,
-                      items: List.generate(24, (i) {
-                        final d = DateTime(
-                          DateTime.now().year,
-                          DateTime.now().month - i,
-                          1,
-                        );
-                        return DropdownMenuItem(
-                          value: d,
-                          child: Text(
-                            '${d.year}-${d.month.toString().padLeft(2, '0')}',
-                          ),
-                        );
-                      }),
+                    DropdownButton<IncomeFilterMode>(
+                      value: _filterMode,
+                      items: const [
+                        DropdownMenuItem(
+                          value: IncomeFilterMode.monthly,
+                          child: Text('Monthly'),
+                        ),
+                        DropdownMenuItem(
+                          value: IncomeFilterMode.yearly,
+                          child: Text('Yearly'),
+                        ),
+                        DropdownMenuItem(
+                          value: IncomeFilterMode.custom,
+                          child: Text('Custom'),
+                        ),
+                      ],
                       onChanged: (v) async {
-                        setState(() => _filterMonth = v ?? _filterMonth);
+                        setState(
+                          () => _filterMode = v ?? IncomeFilterMode.monthly,
+                        );
                         await _refresh();
                       },
                     ),
+                    if (_filterMode == IncomeFilterMode.monthly)
+                      DropdownButton<DateTime>(
+                        value: _filterMonth,
+                        items: List.generate(24, (i) {
+                          final d = DateTime(
+                            DateTime.now().year,
+                            DateTime.now().month - i,
+                            1,
+                          );
+                          return DropdownMenuItem(
+                            value: d,
+                            child: Text(
+                              '${d.year}-${d.month.toString().padLeft(2, '0')}',
+                            ),
+                          );
+                        }),
+                        onChanged: (v) async {
+                          setState(() => _filterMonth = v ?? _filterMonth);
+                          await _refresh();
+                        },
+                      ),
+                    if (_filterMode == IncomeFilterMode.yearly)
+                      DropdownButton<int>(
+                        value: _filterYear,
+                        items: List.generate(10, (i) {
+                          final y = DateTime.now().year - i;
+                          return DropdownMenuItem(
+                            value: y,
+                            child: Text(y.toString()),
+                          );
+                        }),
+                        onChanged: (v) async {
+                          setState(() => _filterYear = v ?? _filterYear);
+                          await _refresh();
+                        },
+                      ),
+                    if (_filterMode == IncomeFilterMode.custom)
+                      OutlinedButton(
+                        onPressed: () => _pickDate(
+                          initial: _filterCustomFrom,
+                          onChanged: (d) => setState(() {
+                            _filterCustomFrom = d;
+                            if (_filterCustomTo.isBefore(d)) {
+                              _filterCustomTo = d;
+                            }
+                          }),
+                        ),
+                        child: Text(
+                          'From: ${formatIsoDate(_filterCustomFrom)}',
+                        ),
+                      ),
+                    if (_filterMode == IncomeFilterMode.custom)
+                      OutlinedButton(
+                        onPressed: () => _pickDate(
+                          initial: _filterCustomTo,
+                          onChanged: (d) => setState(() {
+                            _filterCustomTo = d;
+                            if (_filterCustomTo.isBefore(_filterCustomFrom)) {
+                              _filterCustomFrom = d;
+                            }
+                          }),
+                        ),
+                        child: Text('To: ${formatIsoDate(_filterCustomTo)}'),
+                      ),
                     OutlinedButton(
                       onPressed: _refresh,
                       child: const Text('Refresh'),
                     ),
                   ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Selected period income: ${formatCurrency(_entries.fold<double>(0, (a, b) => a + b.amount))}',
+                  style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 8),
                 Wrap(

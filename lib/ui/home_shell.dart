@@ -80,6 +80,24 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final item = _items[_index];
+    Widget animatedPage(Widget child) {
+      return AnimatedSwitcher(
+        duration: const Duration(milliseconds: 260),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        transitionBuilder: (widget, animation) {
+          final slide = Tween<Offset>(
+            begin: const Offset(0.03, 0),
+            end: Offset.zero,
+          ).animate(animation);
+          return FadeTransition(
+            opacity: animation,
+            child: SlideTransition(position: slide, child: widget),
+          );
+        },
+        child: KeyedSubtree(key: ValueKey(_index), child: child),
+      );
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -107,7 +125,7 @@ class _HomeShellState extends State<HomeShell> {
                 ],
               ),
             ),
-            body: item.page,
+            body: animatedPage(item.page),
           );
         }
 
@@ -130,7 +148,7 @@ class _HomeShellState extends State<HomeShell> {
                     .toList(growable: false),
               ),
               const VerticalDivider(width: 1),
-              Expanded(child: item.page),
+              Expanded(child: animatedPage(item.page)),
             ],
           ),
         );

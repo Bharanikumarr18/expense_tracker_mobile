@@ -40,6 +40,8 @@ class _DashboardPageState extends State<DashboardPage> {
   DateTime _customFrom = DateTime(DateTime.now().year, DateTime.now().month, 1);
   DateTime _customTo = DateTime.now();
   DateTime _dailyDate = DateTime.now();
+  String _subCategoryFilter = 'All';
+  List<String> _subCategoryFilterOptions = const ['All'];
 
   @override
   void initState() {
@@ -69,9 +71,17 @@ class _DashboardPageState extends State<DashboardPage> {
       final summary = await widget.repo.getDashboardSummary(now);
       final (from, to) = _range();
       final cat = await widget.repo.expenseTotalsByCategory(from: from, to: to);
+      final filterOptions = <String>[
+        'All',
+        ...cat.map((e) => e.label).where((e) => e.trim().isNotEmpty),
+      ];
+      final selectedFilter = filterOptions.contains(_subCategoryFilter)
+          ? _subCategoryFilter
+          : 'All';
       final sub = await widget.repo.expenseTotalsBySubcategory(
         from: from,
         to: to,
+        category: selectedFilter == 'All' ? null : selectedFilter,
       );
       final daily = await widget.repo.dailyBuy(_dailyDate);
 
@@ -80,6 +90,8 @@ class _DashboardPageState extends State<DashboardPage> {
         _summary = summary;
         _catRows = cat;
         _subRows = sub;
+        _subCategoryFilterOptions = filterOptions;
+        _subCategoryFilter = selectedFilter;
         _daily = daily;
         _loading = false;
       });
@@ -273,6 +285,22 @@ class _DashboardPageState extends State<DashboardPage> {
                           onPressed: () => _pickDate(from: false),
                           child: Text('To: ${formatIsoDate(_customTo)}'),
                         ),
+                      DropdownButton<String>(
+                        value: _subCategoryFilter,
+                        items: _subCategoryFilterOptions
+                            .map(
+                              (c) => DropdownMenuItem(
+                                value: c,
+                                child: Text('Subcategory: $c'),
+                              ),
+                            )
+                            .toList(growable: false),
+                        onChanged: (v) async {
+                          if (v == null) return;
+                          setState(() => _subCategoryFilter = v);
+                          await _refresh();
+                        },
+                      ),
                       ElevatedButton(
                         onPressed: _refresh,
                         child: const Text('Refresh Charts'),
@@ -288,35 +316,37 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
           ),
           const SizedBox(height: 8),
+          Text(
+            'Spending Distribution',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
           LayoutBuilder(
             builder: (context, constraints) {
               final wide = constraints.maxWidth >= 980;
+              final charts = [
+                TotalsPieChart(title: 'By Category', rows: _catRows),
+                TotalsPieChart(
+                  title: _subCategoryFilter == 'All'
+                      ? 'By Subcategory'
+                      : 'By Subcategory ($_subCategoryFilter)',
+                  rows: _subRows,
+                ),
+              ];
               if (wide) {
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: TotalsPieChart(
-                        title: 'By Category',
-                        rows: _catRows,
-                      ),
-                    ),
+                    Expanded(child: charts[0]),
                     const SizedBox(width: 8),
-                    Expanded(
-                      child: TotalsPieChart(
-                        title: 'By Subcategory',
-                        rows: _subRows,
-                      ),
-                    ),
+                    Expanded(child: charts[1]),
                   ],
                 );
               }
               return Column(
-                children: [
-                  TotalsPieChart(title: 'By Category', rows: _catRows),
-                  const SizedBox(height: 8),
-                  TotalsPieChart(title: 'By Subcategory', rows: _subRows),
-                ],
+                children: [charts[0], const SizedBox(height: 8), charts[1]],
               );
             },
           ),

@@ -36,11 +36,17 @@ class SummaryCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 6),
-            Text(
-              formatCurrency(value),
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+            TweenAnimationBuilder<double>(
+              key: ValueKey('${title}_$value'),
+              tween: Tween<double>(begin: 0, end: value),
+              duration: const Duration(milliseconds: 550),
+              curve: Curves.easeOutCubic,
+              builder: (context, animatedValue, _) => Text(
+                formatCurrency(animatedValue),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+              ),
             ),
           ],
         ),
@@ -152,6 +158,8 @@ class _TotalsPieChartState extends State<TotalsPieChart> {
                     );
                   }),
                 ),
+                duration: const Duration(milliseconds: 700),
+                curve: Curves.easeOutCubic,
               ),
             ),
             const SizedBox(height: 8),

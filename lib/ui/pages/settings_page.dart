@@ -16,6 +16,7 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   final _exportPathCtrl = TextEditingController();
+  final _megaPathCtrl = TextEditingController();
   final _wipeCtrl = TextEditingController();
   bool _saving = false;
   String? _defaultExportPath;
@@ -24,12 +25,14 @@ class _SettingsPageState extends State<SettingsPage> {
   void initState() {
     super.initState();
     _exportPathCtrl.text = widget.controller.customExportDirectory ?? '';
+    _megaPathCtrl.text = widget.controller.megaExportDirectory ?? '';
     _loadDefaultDir();
   }
 
   @override
   void dispose() {
     _exportPathCtrl.dispose();
+    _megaPathCtrl.dispose();
     _wipeCtrl.dispose();
     super.dispose();
   }
@@ -68,6 +71,37 @@ class _SettingsPageState extends State<SettingsPage> {
     if (path != null && path.trim().isNotEmpty) {
       _exportPathCtrl.text = path.trim();
       await _saveExportDir(path.trim());
+    }
+  }
+
+  Future<void> _saveMegaDir(String path) async {
+    setState(() => _saving = true);
+    await widget.controller.setMegaExportDirectory(path);
+    if (!mounted) return;
+    setState(() => _saving = false);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('MEGA folder set to: $path')));
+  }
+
+  Future<void> _clearMegaDir() async {
+    setState(() => _saving = true);
+    await widget.controller.clearMegaExportDirectory();
+    if (!mounted) return;
+    _megaPathCtrl.text = '';
+    setState(() => _saving = false);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('MEGA folder cleared')));
+  }
+
+  Future<void> _pickMegaFolder() async {
+    if (kIsWeb) return;
+    final path = await FilePicker.platform.getDirectoryPath();
+    if (!mounted) return;
+    if (path != null && path.trim().isNotEmpty) {
+      _megaPathCtrl.text = path.trim();
+      await _saveMegaDir(path.trim());
     }
   }
 
@@ -255,6 +289,71 @@ class _SettingsPageState extends State<SettingsPage> {
                     if (!kIsWeb)
                       OutlinedButton.icon(
                         onPressed: _saving ? null : _pickFolder,
+                        icon: const Icon(Icons.folder_open),
+                        label: const Text('Pick Folder'),
+                      ),
+                  ],
+                ),
+                if (kIsWeb)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      'Picking a folder is not supported in web.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'MEGA Sync',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Optional: set a local MEGA/MEGAsync folder. '
+                  'Exports can be copied there from the Export page.',
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _megaPathCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'MEGA export folder',
+                    hintText: '/storage/emulated/0/MEGA/TrackerExports',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: _saving
+                          ? null
+                          : () async {
+                              final value = _megaPathCtrl.text.trim();
+                              if (value.isEmpty) return;
+                              await _saveMegaDir(value);
+                            },
+                      icon: const Icon(Icons.cloud_upload_outlined),
+                      label: const Text('Save MEGA Folder'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _saving ? null : _clearMegaDir,
+                      icon: const Icon(Icons.refresh_outlined),
+                      label: const Text('Clear MEGA Folder'),
+                    ),
+                    if (!kIsWeb)
+                      OutlinedButton.icon(
+                        onPressed: _saving ? null : _pickMegaFolder,
                         icon: const Icon(Icons.folder_open),
                         label: const Text('Pick Folder'),
                       ),

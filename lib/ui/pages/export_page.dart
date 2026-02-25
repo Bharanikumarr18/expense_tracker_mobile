@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
@@ -23,6 +25,7 @@ class ExportPage extends StatefulWidget {
 }
 
 class _ExportPageState extends State<ExportPage> {
+  static const String _megaExportKey = 'mega_export_directory';
   pw.Font? _pdfFont;
   ExportMode _expenseMode = ExportMode.monthly;
   ExportMode _incomeMode = ExportMode.monthly;
@@ -62,11 +65,15 @@ class _ExportPageState extends State<ExportPage> {
 
   EventSummary? _selectedEvent;
   bool _busy = false;
+  String? _megaDir;
+  bool _megaAvailable = false;
+  bool _megaChecked = false;
 
   @override
   void initState() {
     super.initState();
     _loadRef();
+    _loadMegaStatus();
   }
 
   Future<void> _loadRef() async {
@@ -84,6 +91,106 @@ class _ExportPageState extends State<ExportPage> {
           .expand((e) => e.subcategories.map((s) => s.name))
           .toSet();
     });
+  }
+
+  Future<void> _loadMegaStatus() async {
+    if (kIsWeb) {
+      if (!mounted) return;
+      setState(() {
+        _megaChecked = true;
+        _megaDir = null;
+        _megaAvailable = false;
+      });
+      return;
+    }
+    final dir = (await widget.repo.getAppSetting(_megaExportKey))?.trim();
+    bool exists = false;
+    if (dir != null && dir.isNotEmpty) {
+      exists = await Directory(dir).exists();
+    }
+    if (!mounted) return;
+    setState(() {
+      _megaChecked = true;
+      _megaDir = dir;
+      _megaAvailable = exists;
+    });
+  }
+
+  String _sanitizeSubfolder(String value) {
+    final cleaned = value.replaceAll(RegExp(r'[<>:"/\\\\|?*]+'), '_').trim();
+    return cleaned.replaceAll(RegExp(r'^\\.+|\\.+$'), '').trim();
+  }
+
+  String _joinPath(String base, String child) {
+    if (base.endsWith('/')) return '$base$child';
+    return '$base/$child';
+  }
+
+  Future<String?> _saveMegaCopy(
+    Uint8List bytes,
+    String fileName,
+    String subfolder,
+  ) async {
+    if (kIsWeb) {
+      if (!mounted) return null;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('MEGA export is not supported on web.')),
+      );
+      return null;
+    }
+    final base =
+        (await widget.repo.getAppSetting(_megaExportKey))?.trim() ?? '';
+    if (base.isEmpty) {
+      if (!mounted) return null;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('MEGA export path is not configured in Settings.'),
+        ),
+      );
+      return null;
+    }
+    final baseDir = Directory(base);
+    if (!await baseDir.exists()) {
+      if (!mounted) return null;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('MEGA folder not found: $base')));
+      return null;
+    }
+
+    var targetDir = base;
+    final safeSub = _sanitizeSubfolder(subfolder);
+    if (safeSub.isNotEmpty) {
+      targetDir = _joinPath(base, safeSub);
+    }
+    final dir = Directory(targetDir);
+    await dir.create(recursive: true);
+
+    var finalName = fileName;
+    File dest = File('${dir.path}/$finalName');
+    if (await dest.exists()) {
+      final dot = fileName.lastIndexOf('.');
+      final stem = dot > 0 ? fileName.substring(0, dot) : fileName;
+      final ext = dot > 0 ? fileName.substring(dot) : '';
+      finalName =
+          '${stem}_${DateTime.now().toIso8601String().replaceAll(':', '')}$ext';
+      dest = File('${dir.path}/$finalName');
+    }
+    await dest.writeAsBytes(bytes, flush: true);
+    if (await dest.length() <= 0) {
+      if (!mounted) return null;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('MEGA upload failed: file was empty.')),
+      );
+      return null;
+    }
+
+    await _loadMegaStatus();
+    if (!mounted) return dest.path;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Uploaded to MEGA: ${dest.path}')));
+    return dest.path;
   }
 
   (DateTime, DateTime) _range(
@@ -535,6 +642,122 @@ class _ExportPageState extends State<ExportPage> {
     setState(() => _busy = false);
   }
 
+  Future<void> _exportExpenseToMega() async {
+    setState(() => _busy = true);
+    final (from, to) = _range(
+      _expenseMode,
+      _expenseMonth,
+      _expenseYear,
+      _expenseFrom,
+      _expenseTo,
+    );
+    final all = await widget.repo.getExpenses(from: from, to: to);
+    final rows = all
+        .where((e) {
+          if (_expenseCategoryFilter != 'All' &&
+              e.category != _expenseCategoryFilter) {
+            return false;
+          }
+          if (_expenseSubFilter != 'All' &&
+              e.subcategory != _expenseSubFilter) {
+            return false;
+          }
+          return true;
+        })
+        .toList(growable: false);
+    final bytes = await _buildExpensePdf(rows, from, to);
+    await _saveMegaCopy(
+      bytes,
+      'expense_${formatIsoDate(from)}_${formatIsoDate(to)}.pdf',
+      'expenses',
+    );
+    if (!mounted) return;
+    setState(() => _busy = false);
+  }
+
+  Future<void> _exportIncomeToMega() async {
+    setState(() => _busy = true);
+    final (from, to) = _range(
+      _incomeMode,
+      _incomeMonth,
+      _incomeYear,
+      _incomeFrom,
+      _incomeTo,
+    );
+    final all = await widget.repo.getIncomes(from: from, to: to);
+    final rows = all
+        .where((e) {
+          if (_incomeCategoryFilter != 'All' &&
+              e.category != _incomeCategoryFilter) {
+            return false;
+          }
+          if (_incomeSubFilter != 'All' && e.subcategory != _incomeSubFilter) {
+            return false;
+          }
+          return true;
+        })
+        .toList(growable: false);
+    final bytes = await _buildIncomePdf(rows, from, to);
+    await _saveMegaCopy(
+      bytes,
+      'income_${formatIsoDate(from)}_${formatIsoDate(to)}.pdf',
+      'income',
+    );
+    if (!mounted) return;
+    setState(() => _busy = false);
+  }
+
+  Future<void> _exportEventToMega() async {
+    final event = _selectedEvent;
+    if (event == null) return;
+    setState(() => _busy = true);
+    final rows = await widget.repo.getEventEntries(event);
+    final bytes = await _buildEventPdf(event, rows);
+    await _saveMegaCopy(
+      bytes,
+      'event_${event.name}_${formatIsoDate(event.start)}.pdf',
+      'events',
+    );
+    if (!mounted) return;
+    setState(() => _busy = false);
+  }
+
+  Future<void> _exportSummaryToMega() async {
+    setState(() => _busy = true);
+    final (from, to) = _range(
+      _expenseMode,
+      _expenseMonth,
+      _expenseYear,
+      _expenseFrom,
+      _expenseTo,
+    );
+    var catRows = await widget.repo.expenseTotalsByCategory(from: from, to: to);
+    var subRows = await widget.repo.expenseTotalsBySubcategory(
+      from: from,
+      to: to,
+    );
+
+    if (_summaryCategories.isNotEmpty) {
+      catRows = catRows
+          .where((r) => _summaryCategories.contains(r.label))
+          .toList(growable: false);
+      if (!_selectAllSummarySub) {
+        subRows = subRows
+            .where((r) => _summarySubcategories.contains(r.label))
+            .toList(growable: false);
+      }
+    }
+
+    final bytes = await _buildSummaryPdf(catRows, subRows, from, to);
+    await _saveMegaCopy(
+      bytes,
+      'expense_summary_${formatIsoDate(from)}_${formatIsoDate(to)}.pdf',
+      'expenses',
+    );
+    if (!mounted) return;
+    setState(() => _busy = false);
+  }
+
   Widget _buildModeFilter({
     required ExportMode mode,
     required ValueChanged<ExportMode> onMode,
@@ -638,6 +861,29 @@ class _ExportPageState extends State<ExportPage> {
         ),
         const SizedBox(height: 8),
         Card(
+          child: ListTile(
+            leading: const Icon(Icons.cloud_outlined),
+            title: const Text('MEGA Status'),
+            subtitle: _megaChecked
+                ? (kIsWeb
+                      ? const Text('MEGA export is not supported on web.')
+                      : (_megaDir == null || _megaDir!.isEmpty)
+                      ? const Text('Not configured. Set in Settings.')
+                      : Text(
+                          _megaAvailable
+                              ? 'Ready: $_megaDir'
+                              : 'Folder not found: $_megaDir',
+                        ))
+                : const Text('Checking MEGA folder...'),
+            trailing: IconButton(
+              onPressed: _busy ? null : _loadMegaStatus,
+              icon: const Icon(Icons.refresh_outlined),
+              tooltip: 'Refresh',
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Card(
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Column(
@@ -694,6 +940,11 @@ class _ExportPageState extends State<ExportPage> {
                       onPressed: _busy ? null : _exportExpense,
                       icon: const Icon(Icons.picture_as_pdf),
                       label: const Text('Export Expense PDF'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _busy ? null : _exportExpenseToMega,
+                      icon: const Icon(Icons.cloud_upload_outlined),
+                      label: const Text('Upload to MEGA'),
                     ),
                   ],
                 ),
@@ -766,9 +1017,19 @@ class _ExportPageState extends State<ExportPage> {
                     ],
                   ),
                 const SizedBox(height: 8),
-                ElevatedButton(
-                  onPressed: _busy ? null : _exportSummaryTotals,
-                  child: const Text('Generate Summary PDF'),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    ElevatedButton(
+                      onPressed: _busy ? null : _exportSummaryTotals,
+                      child: const Text('Generate Summary PDF'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _busy ? null : _exportSummaryToMega,
+                      icon: const Icon(Icons.cloud_upload_outlined),
+                      label: const Text('Upload to MEGA'),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -833,6 +1094,11 @@ class _ExportPageState extends State<ExportPage> {
                       icon: const Icon(Icons.picture_as_pdf),
                       label: const Text('Export Income PDF'),
                     ),
+                    OutlinedButton.icon(
+                      onPressed: _busy ? null : _exportIncomeToMega,
+                      icon: const Icon(Icons.cloud_upload_outlined),
+                      label: const Text('Upload to MEGA'),
+                    ),
                   ],
                 ),
               ],
@@ -878,6 +1144,13 @@ class _ExportPageState extends State<ExportPage> {
                             : _exportEvent,
                         icon: const Icon(Icons.receipt_long),
                         label: const Text('Export Event PDF'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _busy || _selectedEvent == null
+                            ? null
+                            : _exportEventToMega,
+                        icon: const Icon(Icons.cloud_upload_outlined),
+                        label: const Text('Upload to MEGA'),
                       ),
                     ],
                   ),

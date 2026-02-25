@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -22,6 +23,7 @@ class ExportPage extends StatefulWidget {
 }
 
 class _ExportPageState extends State<ExportPage> {
+  pw.Font? _pdfFont;
   ExportMode _expenseMode = ExportMode.monthly;
   ExportMode _incomeMode = ExportMode.monthly;
 
@@ -122,11 +124,13 @@ class _ExportPageState extends State<ExportPage> {
     DateTime from,
     DateTime to,
   ) async {
+    final font = await _loadPdfFont();
     final doc = pw.Document();
     final total = rows.fold<double>(0, (a, b) => a + b.amount);
 
     doc.addPage(
       pw.MultiPage(
+        theme: pw.ThemeData.withFont(base: font, bold: font),
         pageTheme: const pw.PageTheme(
           margin: pw.EdgeInsets.all(28),
           pageFormat: PdfPageFormat.a4,
@@ -134,7 +138,11 @@ class _ExportPageState extends State<ExportPage> {
         build: (context) => [
           pw.Text(
             'Expense Report',
-            style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
+            style: pw.TextStyle(
+              font: font,
+              fontSize: 24,
+              fontWeight: pw.FontWeight.bold,
+            ),
           ),
           pw.SizedBox(height: 6),
           pw.Text('Period: ${formatIsoDate(from)} → ${formatIsoDate(to)}'),
@@ -154,7 +162,11 @@ class _ExportPageState extends State<ExportPage> {
                 )
                 .toList(growable: false),
             border: pw.TableBorder.all(color: PdfColors.grey700, width: 0.4),
-            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+            headerStyle: pw.TextStyle(
+              font: font,
+              fontWeight: pw.FontWeight.bold,
+            ),
+            cellStyle: pw.TextStyle(font: font),
             cellAlignment: pw.Alignment.centerLeft,
             headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
           ),
@@ -170,11 +182,13 @@ class _ExportPageState extends State<ExportPage> {
     DateTime from,
     DateTime to,
   ) async {
+    final font = await _loadPdfFont();
     final doc = pw.Document();
     final total = rows.fold<double>(0, (a, b) => a + b.amount);
 
     doc.addPage(
       pw.MultiPage(
+        theme: pw.ThemeData.withFont(base: font, bold: font),
         pageTheme: const pw.PageTheme(
           margin: pw.EdgeInsets.all(28),
           pageFormat: PdfPageFormat.a4,
@@ -182,7 +196,11 @@ class _ExportPageState extends State<ExportPage> {
         build: (context) => [
           pw.Text(
             'Income Report',
-            style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
+            style: pw.TextStyle(
+              font: font,
+              fontSize: 24,
+              fontWeight: pw.FontWeight.bold,
+            ),
           ),
           pw.SizedBox(height: 6),
           pw.Text('Period: ${formatIsoDate(from)} → ${formatIsoDate(to)}'),
@@ -202,7 +220,11 @@ class _ExportPageState extends State<ExportPage> {
                 )
                 .toList(growable: false),
             border: pw.TableBorder.all(color: PdfColors.grey700, width: 0.4),
-            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+            headerStyle: pw.TextStyle(
+              font: font,
+              fontWeight: pw.FontWeight.bold,
+            ),
+            cellStyle: pw.TextStyle(font: font),
             cellAlignment: pw.Alignment.centerLeft,
             headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
           ),
@@ -217,11 +239,13 @@ class _ExportPageState extends State<ExportPage> {
     EventSummary event,
     List<ExpenseEntry> rows,
   ) async {
+    final font = await _loadPdfFont();
     final doc = pw.Document();
     final total = rows.fold<double>(0, (a, b) => a + b.amount);
 
     doc.addPage(
       pw.MultiPage(
+        theme: pw.ThemeData.withFont(base: font, bold: font),
         pageTheme: const pw.PageTheme(
           margin: pw.EdgeInsets.all(28),
           pageFormat: PdfPageFormat.a4,
@@ -229,7 +253,11 @@ class _ExportPageState extends State<ExportPage> {
         build: (context) => [
           pw.Text(
             'Event Report — ${event.name}',
-            style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
+            style: pw.TextStyle(
+              font: font,
+              fontSize: 24,
+              fontWeight: pw.FontWeight.bold,
+            ),
           ),
           pw.SizedBox(height: 6),
           pw.Text(
@@ -251,7 +279,11 @@ class _ExportPageState extends State<ExportPage> {
                 )
                 .toList(growable: false),
             border: pw.TableBorder.all(color: PdfColors.grey700, width: 0.4),
-            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+            headerStyle: pw.TextStyle(
+              font: font,
+              fontWeight: pw.FontWeight.bold,
+            ),
+            cellStyle: pw.TextStyle(font: font),
             cellAlignment: pw.Alignment.centerLeft,
             headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
           ),
@@ -268,11 +300,13 @@ class _ExportPageState extends State<ExportPage> {
     DateTime from,
     DateTime to,
   ) async {
+    final font = await _loadPdfFont();
     final doc = pw.Document();
     final total = catRows.fold<double>(0, (a, b) => a + b.amount);
 
     doc.addPage(
       pw.MultiPage(
+        theme: pw.ThemeData.withFont(base: font, bold: font),
         pageTheme: const pw.PageTheme(
           margin: pw.EdgeInsets.all(28),
           pageFormat: PdfPageFormat.a4,
@@ -280,7 +314,11 @@ class _ExportPageState extends State<ExportPage> {
         build: (context) => [
           pw.Text(
             'Summary / Totals Export',
-            style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
+            style: pw.TextStyle(
+              font: font,
+              fontSize: 24,
+              fontWeight: pw.FontWeight.bold,
+            ),
           ),
           pw.SizedBox(height: 6),
           pw.Text('Period: ${formatIsoDate(from)} → ${formatIsoDate(to)}'),
@@ -289,7 +327,11 @@ class _ExportPageState extends State<ExportPage> {
           pw.SizedBox(height: 14),
           pw.Text(
             'By Category',
-            style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
+            style: pw.TextStyle(
+              font: font,
+              fontSize: 16,
+              fontWeight: pw.FontWeight.bold,
+            ),
           ),
           pw.SizedBox(height: 6),
           pw.TableHelper.fromTextArray(
@@ -299,11 +341,20 @@ class _ExportPageState extends State<ExportPage> {
                 .toList(growable: false),
             border: pw.TableBorder.all(color: PdfColors.grey700, width: 0.4),
             headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
+            headerStyle: pw.TextStyle(
+              font: font,
+              fontWeight: pw.FontWeight.bold,
+            ),
+            cellStyle: pw.TextStyle(font: font),
           ),
           pw.SizedBox(height: 12),
           pw.Text(
             'By Subcategory',
-            style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
+            style: pw.TextStyle(
+              font: font,
+              fontSize: 16,
+              fontWeight: pw.FontWeight.bold,
+            ),
           ),
           pw.SizedBox(height: 6),
           pw.TableHelper.fromTextArray(
@@ -313,12 +364,24 @@ class _ExportPageState extends State<ExportPage> {
                 .toList(growable: false),
             border: pw.TableBorder.all(color: PdfColors.grey700, width: 0.4),
             headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
+            headerStyle: pw.TextStyle(
+              font: font,
+              fontWeight: pw.FontWeight.bold,
+            ),
+            cellStyle: pw.TextStyle(font: font),
           ),
         ],
       ),
     );
 
     return doc.save();
+  }
+
+  Future<pw.Font> _loadPdfFont() async {
+    if (_pdfFont != null) return _pdfFont!;
+    final data = await rootBundle.load('assets/fonts/DejaVuSans.ttf');
+    _pdfFont = pw.Font.ttf(data);
+    return _pdfFont!;
   }
 
   Future<void> _shareBytes(Uint8List bytes, String fileName) async {

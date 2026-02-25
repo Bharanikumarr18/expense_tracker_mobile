@@ -485,6 +485,8 @@ class TrackerRepository {
   Future<List<ExpenseEntry>> getExpenses({
     DateTime? from,
     DateTime? to,
+    int? categoryId,
+    int? subcategoryId,
     int? limit,
   }) async {
     final db = await _db;
@@ -498,6 +500,14 @@ class TrackerRepository {
     if (to != null) {
       where.add('date<=?');
       args.add(formatIsoDate(to));
+    }
+    if (categoryId != null) {
+      where.add('e.category_id=?');
+      args.add(categoryId);
+    }
+    if (subcategoryId != null) {
+      where.add('e.subcategory_id=?');
+      args.add(subcategoryId);
     }
 
     final rows = await db.rawQuery('''
@@ -542,14 +552,21 @@ class TrackerRepository {
     int id, {
     required DateTime date,
     required double amount,
+    int? categoryId,
+    int? subcategoryId,
   }) async {
     final db = await _db;
-    await db.update(
-      'expenses',
-      {'date': formatIsoDate(date), 'amount': amount},
-      where: 'id=?',
-      whereArgs: [id],
-    );
+    final values = <String, Object?>{
+      'date': formatIsoDate(date),
+      'amount': amount,
+    };
+    if (categoryId != null) {
+      values['category_id'] = categoryId;
+    }
+    if (subcategoryId != null) {
+      values['subcategory_id'] = subcategoryId;
+    }
+    await db.update('expenses', values, where: 'id=?', whereArgs: [id]);
   }
 
   Future<void> deleteExpense(int id) async {
@@ -760,6 +777,8 @@ class TrackerRepository {
   Future<List<IncomeEntry>> getIncomes({
     DateTime? from,
     DateTime? to,
+    int? categoryId,
+    int? subcategoryId,
     int? limit,
   }) async {
     final db = await _db;
@@ -772,6 +791,14 @@ class TrackerRepository {
     if (to != null) {
       where.add('i.date<=?');
       args.add(formatIsoDate(to));
+    }
+    if (categoryId != null) {
+      where.add('i.category_id=?');
+      args.add(categoryId);
+    }
+    if (subcategoryId != null) {
+      where.add('i.subcategory_id=?');
+      args.add(subcategoryId);
     }
 
     final rows = await db.rawQuery('''
@@ -801,14 +828,252 @@ class TrackerRepository {
     int id, {
     required DateTime date,
     required double amount,
+    int? categoryId,
+    int? subcategoryId,
   }) async {
     final db = await _db;
-    await db.update(
-      'income',
-      {'date': formatIsoDate(date), 'amount': amount},
-      where: 'id=?',
-      whereArgs: [id],
+    final values = <String, Object?>{
+      'date': formatIsoDate(date),
+      'amount': amount,
+    };
+    if (categoryId != null) {
+      values['category_id'] = categoryId;
+    }
+    if (subcategoryId != null) {
+      values['subcategory_id'] = subcategoryId;
+    }
+    await db.update('income', values, where: 'id=?', whereArgs: [id]);
+  }
+
+  Future<void> clearAllData() async {
+    final db = await _db;
+    await db.transaction((txn) async {
+      await txn.delete('expenses');
+      await txn.delete('subcategories');
+      await txn.delete('categories');
+      await txn.delete('income');
+      await txn.delete('income_subcategories');
+      await txn.delete('income_categories');
+      await txn.delete('appliances');
+      await txn.delete('metal_assets');
+      await txn.delete('land_assets');
+      await txn.delete('fixed_deposits');
+      await txn.delete('lic_policies');
+      await txn.delete('asset_prices');
+      await txn.delete('app_settings');
+      try {
+        await txn.execute('DELETE FROM sqlite_sequence;');
+      } catch (_) {
+        // sqlite_sequence might not exist on some platforms.
+      }
+      await txn.insert('app_settings', {
+        'key': 'disable_default_seed',
+        'value': '1',
+      });
+    });
+  }
+
+  Future<void> restoreDefaultCategories() async {
+    final db = await _db;
+
+    const expenseDefaults = <String, List<String>>{
+      'Essentials': [
+        'Vegetables',
+        'Fruits',
+        'Milk/Curd/Dairy',
+        'Rice',
+        'Oil',
+        'Spices',
+        'Flour',
+        'Sugar',
+        'Dhal',
+        'Nuts',
+        'Water',
+        'Egg',
+      ],
+      'Transport': ['Cab', 'Bus', 'Bike services/etc', 'Petrol'],
+      'Eating out': ['Snacks', 'Meals', 'Tea/Coffee'],
+      'Apparel': ['Shirts/Pants', 'Inner wear', 'Footwear'],
+      'Bathroom': ['Shampoo', 'Soap', 'Tooth paste', 'Detergents'],
+      'Recharge': ['Mobile Recharge', 'Internet'],
+      'Home appliances/Electronics/ Services': [
+        'Labor',
+        'Materials',
+        'Utensils',
+      ],
+      'Miscellaneous': ['Stationary', 'Phenoyl', 'License sticks'],
+      'Health': ['Medicine', 'Doctor'],
+      'Electricity': ['Current Bill'],
+      'Tax': ['Tax'],
+    };
+
+    const incomeDefaults = <String, List<String>>{
+      'Salary': ['Salary'],
+      'Rent': ['Thalavai', 'Bharath', 'Coimbatore', 'Chandra'],
+      'Other sources': ['Miscellaneous', 'Welfare', 'Insurance'],
+    };
+
+    for (final entry in expenseDefaults.entries) {
+      final catId = await db.insert('categories', {
+        'name': entry.key,
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      final id = catId == 0
+          ? (await db.query(
+                  'categories',
+                  columns: ['id'],
+                  where: 'name=?',
+                  whereArgs: [entry.key],
+                  limit: 1,
+                )).first['id']
+                as int
+          : catId;
+      for (final sub in entry.value) {
+        await db.insert('subcategories', {
+          'name': sub,
+          'category_id': id,
+        }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
+    }
+
+    for (final entry in incomeDefaults.entries) {
+      final catId = await db.insert('income_categories', {
+        'name': entry.key,
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      final id = catId == 0
+          ? (await db.query(
+                  'income_categories',
+                  columns: ['id'],
+                  where: 'name=?',
+                  whereArgs: [entry.key],
+                  limit: 1,
+                )).first['id']
+                as int
+          : catId;
+      for (final sub in entry.value) {
+        await db.insert('income_subcategories', {
+          'name': sub,
+          'category_id': id,
+        }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
+    }
+
+    await db.insert('asset_prices', {
+      'key': 'gold_price',
+      'value': 14400.0,
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+    await db.insert('asset_prices', {
+      'key': 'silver_price',
+      'value': 345.0,
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+
+    await db.insert('app_settings', {
+      'key': 'disable_default_seed',
+      'value': '0',
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<List<ExpenseEntry>> getEventEntriesFiltered(
+    EventSummary event, {
+    DateTime? from,
+    DateTime? to,
+    int? categoryId,
+    int? subcategoryId,
+  }) async {
+    final db = await _db;
+    final where = <String>[
+      'e.travel=1',
+      'e.trip_name=?',
+      'e.trip_start=?',
+      'e.trip_end=?',
+    ];
+    final args = <Object?>[
+      event.name,
+      formatIsoDate(event.start),
+      formatIsoDate(event.end),
+    ];
+    if (from != null) {
+      where.add('e.date>=?');
+      args.add(formatIsoDate(from));
+    }
+    if (to != null) {
+      where.add('e.date<=?');
+      args.add(formatIsoDate(to));
+    }
+    if (categoryId != null) {
+      where.add('e.category_id=?');
+      args.add(categoryId);
+    }
+    if (subcategoryId != null) {
+      where.add('e.subcategory_id=?');
+      args.add(subcategoryId);
+    }
+    final rows = await db.rawQuery('''
+      SELECT e.id,e.date,e.amount,e.travel,e.trip_name,e.trip_start,e.trip_end,
+             c.name AS category, s.name AS subcategory
+      FROM expenses e
+      JOIN categories c ON c.id=e.category_id
+      JOIN subcategories s ON s.id=e.subcategory_id
+      WHERE ${where.join(' AND ')}
+      ORDER BY e.date DESC, e.id DESC;
+      ''', args);
+
+    return rows
+        .map(
+          (r) => ExpenseEntry(
+            id: r['id'] as int,
+            date: _asDate(r['date']),
+            category: r['category'] as String,
+            subcategory: r['subcategory'] as String,
+            amount: _asDouble(r['amount']),
+            isEvent: true,
+            eventName: r['trip_name'] as String?,
+            eventStart: _asDate(r['trip_start']),
+            eventEnd: _asDate(r['trip_end']),
+          ),
+        )
+        .toList();
+  }
+
+  Future<List<ApplianceEntry>> getAppliances({
+    DateTime? from,
+    DateTime? to,
+    String? query,
+  }) async {
+    final db = await _db;
+    final where = <String>[];
+    final args = <Object?>[];
+    if (from != null) {
+      where.add('purchase_date>=?');
+      args.add(formatIsoDate(from));
+    }
+    if (to != null) {
+      where.add('purchase_date<=?');
+      args.add(formatIsoDate(to));
+    }
+    if (query != null && query.trim().isNotEmpty) {
+      where.add('name LIKE ?');
+      args.add('%${query.trim()}%');
+    }
+    final rows = await db.query(
+      'appliances',
+      where: where.isEmpty ? null : where.join(' AND '),
+      whereArgs: where.isEmpty ? null : args,
+      orderBy: 'purchase_date DESC, id DESC',
     );
+    return rows
+        .map(
+          (r) => ApplianceEntry(
+            id: r['id'] as int,
+            name: r['name'] as String,
+            price: _asDouble(r['price']),
+            purchaseDate: _asDate(r['purchase_date']),
+            warrantyExpiry: r['warranty_expiry'] == null
+                ? null
+                : _asDate(r['warranty_expiry']),
+            depreciationYears: r['depreciation_years'] as int?,
+          ),
+        )
+        .toList();
   }
 
   Future<void> deleteIncome(int id) async {
@@ -1012,28 +1277,6 @@ class TrackerRepository {
           : formatIsoDate(warrantyExpiry),
       'depreciation_years': depreciationYears,
     });
-  }
-
-  Future<List<ApplianceEntry>> getAppliances() async {
-    final db = await _db;
-    final rows = await db.query(
-      'appliances',
-      orderBy: 'purchase_date DESC, id DESC',
-    );
-    return rows
-        .map(
-          (r) => ApplianceEntry(
-            id: r['id'] as int,
-            name: r['name'] as String,
-            price: _asDouble(r['price']),
-            purchaseDate: _asDate(r['purchase_date']),
-            warrantyExpiry: r['warranty_expiry'] == null
-                ? null
-                : _asDate(r['warranty_expiry']),
-            depreciationYears: r['depreciation_years'] as int?,
-          ),
-        )
-        .toList();
   }
 
   Future<void> deleteAppliance(int id) async {

@@ -342,18 +342,14 @@ class _DashboardPageState extends State<DashboardPage> {
           LayoutBuilder(
             builder: (context, constraints) {
               final width = constraints.maxWidth;
-              final crossAxisCount = width >= 980
-                  ? 3
-                  : width >= 640
-                  ? 2
-                  : 1;
+              final crossAxisCount = width >= 980 ? 3 : 2;
               return GridView.count(
                 crossAxisCount: crossAxisCount,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 mainAxisSpacing: 10,
                 crossAxisSpacing: 10,
-                childAspectRatio: crossAxisCount == 1 ? 3.2 : 2.6,
+                childAspectRatio: crossAxisCount == 3 ? 2.6 : 2.2,
                 children: [
                   SummaryCard(
                     title: 'Total Income',
@@ -382,57 +378,77 @@ class _DashboardPageState extends State<DashboardPage> {
                     runSpacing: 8,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      DropdownButton<DashboardMode>(
-                        value: _mode,
-                        items: const [
-                          DropdownMenuItem(
-                            value: DashboardMode.monthly,
-                            child: Text('Monthly'),
+                      SizedBox(
+                        width: 130,
+                        child: DropdownButtonFormField<DashboardMode>(
+                          value: _mode,
+                          isExpanded: true,
+                          decoration: const InputDecoration(labelText: 'Mode'),
+                          items: const [
+                            DropdownMenuItem(
+                              value: DashboardMode.monthly,
+                              child: Text('Monthly'),
+                            ),
+                            DropdownMenuItem(
+                              value: DashboardMode.yearly,
+                              child: Text('Yearly'),
+                            ),
+                            DropdownMenuItem(
+                              value: DashboardMode.custom,
+                              child: Text('Custom'),
+                            ),
+                          ],
+                          onChanged: (v) => setState(
+                            () => _mode = v ?? DashboardMode.monthly,
                           ),
-                          DropdownMenuItem(
-                            value: DashboardMode.yearly,
-                            child: Text('Yearly'),
-                          ),
-                          DropdownMenuItem(
-                            value: DashboardMode.custom,
-                            child: Text('Custom'),
-                          ),
-                        ],
-                        onChanged: (v) =>
-                            setState(() => _mode = v ?? DashboardMode.monthly),
+                        ),
                       ),
                       if (_mode == DashboardMode.monthly)
-                        DropdownButton<DateTime>(
-                          value: _selectedMonth,
-                          items: List.generate(24, (i) {
-                            final d = DateTime(
-                              DateTime.now().year,
-                              DateTime.now().month - i,
-                              1,
-                            );
-                            return DropdownMenuItem(
-                              value: d,
-                              child: Text(
-                                '${d.year}-${d.month.toString().padLeft(2, '0')}',
-                              ),
-                            );
-                          }),
-                          onChanged: (v) => setState(
-                            () => _selectedMonth = v ?? _selectedMonth,
+                        SizedBox(
+                          width: 150,
+                          child: DropdownButtonFormField<DateTime>(
+                            value: _selectedMonth,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Month',
+                            ),
+                            items: List.generate(24, (i) {
+                              final d = DateTime(
+                                DateTime.now().year,
+                                DateTime.now().month - i,
+                                1,
+                              );
+                              return DropdownMenuItem(
+                                value: d,
+                                child: Text(
+                                  '${d.year}-${d.month.toString().padLeft(2, '0')}',
+                                ),
+                              );
+                            }),
+                            onChanged: (v) => setState(
+                              () => _selectedMonth = v ?? _selectedMonth,
+                            ),
                           ),
                         ),
                       if (_mode == DashboardMode.yearly)
-                        DropdownButton<int>(
-                          value: _selectedYear,
-                          items: List.generate(10, (i) {
-                            final y = DateTime.now().year - i;
-                            return DropdownMenuItem(
-                              value: y,
-                              child: Text(y.toString()),
-                            );
-                          }),
-                          onChanged: (v) => setState(
-                            () => _selectedYear = v ?? _selectedYear,
+                        SizedBox(
+                          width: 110,
+                          child: DropdownButtonFormField<int>(
+                            value: _selectedYear,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Year',
+                            ),
+                            items: List.generate(10, (i) {
+                              final y = DateTime.now().year - i;
+                              return DropdownMenuItem(
+                                value: y,
+                                child: Text(y.toString()),
+                              );
+                            }),
+                            onChanged: (v) => setState(
+                              () => _selectedYear = v ?? _selectedYear,
+                            ),
                           ),
                         ),
                       if (_mode == DashboardMode.custom)
@@ -445,36 +461,46 @@ class _DashboardPageState extends State<DashboardPage> {
                           onPressed: () => _pickDate(from: false),
                           child: Text('To: ${formatIsoDate(_customTo)}'),
                         ),
-                      DropdownButton<String>(
-                        value: _subCategoryFilter,
-                        items: _subCategoryFilterOptions
-                            .map(
-                              (c) => DropdownMenuItem(
-                                value: c,
-                                child: Text('Subcategory: $c'),
-                              ),
-                            )
-                            .toList(growable: false),
-                        onChanged: (v) async {
-                          if (v == null) return;
-                          setState(() => _subCategoryFilter = v);
-                          await _refresh();
-                        },
+                      SizedBox(
+                        width: 200,
+                        child: DropdownButtonFormField<String>(
+                          value: _subCategoryFilter,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Subcategory',
+                          ),
+                          items: _subCategoryFilterOptions
+                              .map(
+                                (c) =>
+                                    DropdownMenuItem(value: c, child: Text(c)),
+                              )
+                              .toList(growable: false),
+                          onChanged: (v) async {
+                            if (v == null) return;
+                            setState(() => _subCategoryFilter = v);
+                            await _refresh();
+                          },
+                        ),
                       ),
-                      DropdownButton<SubChartView>(
-                        value: _subChartView,
-                        items: const [
-                          DropdownMenuItem(
-                            value: SubChartView.pie,
-                            child: Text('Pie Chart'),
+                      SizedBox(
+                        width: 140,
+                        child: DropdownButtonFormField<SubChartView>(
+                          value: _subChartView,
+                          isExpanded: true,
+                          decoration: const InputDecoration(labelText: 'Chart'),
+                          items: const [
+                            DropdownMenuItem(
+                              value: SubChartView.pie,
+                              child: Text('Pie'),
+                            ),
+                            DropdownMenuItem(
+                              value: SubChartView.bar,
+                              child: Text('Bar'),
+                            ),
+                          ],
+                          onChanged: (v) => setState(
+                            () => _subChartView = v ?? SubChartView.pie,
                           ),
-                          DropdownMenuItem(
-                            value: SubChartView.bar,
-                            child: Text('Bar Chart'),
-                          ),
-                        ],
-                        onChanged: (v) => setState(
-                          () => _subChartView = v ?? SubChartView.pie,
                         ),
                       ),
                       ElevatedButton(

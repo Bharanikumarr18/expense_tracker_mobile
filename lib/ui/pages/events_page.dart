@@ -20,6 +20,13 @@ class _EventsPageState extends State<EventsPage> {
   List<EventSummary> _events = const [];
   EventSummary? _selected;
   List<ExpenseEntry> _entries = const [];
+  List<Category> _categories = const [];
+  bool _entriesLoaded = false;
+  bool _entriesLoading = false;
+  DateTime? _filterFrom;
+  DateTime? _filterTo;
+  int? _filterCategoryId;
+  int? _filterSubcategoryId;
 
   @override
   void initState() {
@@ -34,6 +41,7 @@ class _EventsPageState extends State<EventsPage> {
     });
     try {
       final events = await widget.repo.getEvents();
+      final categories = await widget.repo.getExpenseCategories();
       EventSummary? selected = _selected;
       if (selected != null) {
         selected = events
@@ -42,21 +50,52 @@ class _EventsPageState extends State<EventsPage> {
             .firstWhere((e) => e != null, orElse: () => null);
       }
       selected ??= events.isNotEmpty ? events.first : null;
-      final entries = selected == null
-          ? const <ExpenseEntry>[]
-          : await widget.repo.getEventEntries(selected);
 
       if (!mounted) return;
       setState(() {
         _events = events;
         _selected = selected;
-        _entries = entries;
+        _categories = categories;
+        _filterFrom ??= selected?.start;
+        _filterTo ??= selected?.end;
         _loading = false;
       });
+      if (_entriesLoaded) {
+        await _loadEntries();
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _loading = false;
+        _error = e.toString();
+      });
+    }
+  }
+
+  Future<void> _loadEntries() async {
+    final event = _selected;
+    if (event == null) return;
+    setState(() {
+      _entriesLoading = true;
+      _entriesLoaded = true;
+    });
+    try {
+      final rows = await widget.repo.getEventEntriesFiltered(
+        event,
+        from: _filterFrom,
+        to: _filterTo,
+        categoryId: _filterCategoryId,
+        subcategoryId: _filterSubcategoryId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _entries = rows;
+        _entriesLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _entriesLoading = false;
         _error = e.toString();
       });
     }
@@ -183,6 +222,7 @@ class _EventsPageState extends State<EventsPage> {
         else ...[
           DropdownButtonFormField<EventSummary>(
             value: _selected,
+            isExpanded: true,
             decoration: const InputDecoration(labelText: 'Select Event'),
             items: _events
                 .map(
@@ -195,9 +235,147 @@ class _EventsPageState extends State<EventsPage> {
                 )
                 .toList(growable: false),
             onChanged: (v) async {
-              setState(() => _selected = v);
+              setState(() {
+                _selected = v;
+                _filterFrom = v?.start;
+                _filterTo = v?.end;
+                _filterCategoryId = null;
+                _filterSubcategoryId = null;
+                _entriesLoaded = false;
+                _entries = const [];
+              });
               await _refresh();
             },
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  OutlinedButton(
+                    onPressed: _selected == null
+                        ? null
+                        : () async {
+                            final d = await showDatePicker(
+                              context: context,
+                              initialDate: _filterFrom ?? _selected!.start,
+                              firstDate: DateTime(2000),
+                              lastDate: DateTime(2100),
+                            );
+                            if (d != null) {
+                              setState(() {
+                                _filterFrom = d;
+                                _entriesLoaded = false;
+                              });
+                            }
+                          },
+                    child: Text(
+                      _filterFrom == null
+                          ? 'From'
+                          : 'From: ${formatIsoDate(_filterFrom!)}',
+                    ),
+                  ),
+                  OutlinedButton(
+                    onPressed: _selected == null
+                        ? null
+                        : () async {
+                            final d = await showDatePicker(
+                              context: context,
+                              initialDate: _filterTo ?? _selected!.end,
+                              firstDate: DateTime(2000),
+                              lastDate: DateTime(2100),
+                            );
+                            if (d != null) {
+                              setState(() {
+                                _filterTo = d;
+                                _entriesLoaded = false;
+                              });
+                            }
+                          },
+                    child: Text(
+                      _filterTo == null
+                          ? 'To'
+                          : 'To: ${formatIsoDate(_filterTo!)}',
+                    ),
+                  ),
+                  SizedBox(
+                    width: 170,
+                    child: DropdownButtonFormField<int?>(
+                      value: _filterCategoryId,
+                      isExpanded: true,
+                      decoration: const InputDecoration(labelText: 'Category'),
+                      items: [
+                        const DropdownMenuItem<int?>(
+                          value: null,
+                          child: Text('All categories'),
+                        ),
+                        ..._categories.map(
+                          (c) => DropdownMenuItem(
+                            value: c.id,
+                            child: Text(c.name),
+                          ),
+                        ),
+                      ],
+                      onChanged: (v) {
+                        setState(() {
+                          _filterCategoryId = v;
+                          _filterSubcategoryId = null;
+                          _entriesLoaded = false;
+                        });
+                      },
+                    ),
+                  ),
+                  SizedBox(
+                    width: 190,
+                    child: DropdownButtonFormField<int?>(
+                      value: _filterSubcategoryId,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Subcategory',
+                      ),
+                      items: [
+                        const DropdownMenuItem<int?>(
+                          value: null,
+                          child: Text('All subcategories'),
+                        ),
+                        ...(_categories
+                                .firstWhere(
+                                  (c) => c.id == _filterCategoryId,
+                                  orElse: () => const Category(
+                                    id: -1,
+                                    name: '',
+                                    subcategories: [],
+                                  ),
+                                )
+                                .subcategories)
+                            .map(
+                              (s) => DropdownMenuItem(
+                                value: s.id,
+                                child: Text(s.name),
+                              ),
+                            ),
+                      ],
+                      onChanged: _filterCategoryId == null
+                          ? null
+                          : (v) {
+                              setState(() {
+                                _filterSubcategoryId = v;
+                                _entriesLoaded = false;
+                              });
+                            },
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: _entriesLoading ? null : _loadEntries,
+                    child: const Text('Load Entries'),
+                  ),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 8),
           ExpansionTile(
@@ -245,9 +423,15 @@ class _EventsPageState extends State<EventsPage> {
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
-              child: _entries.isEmpty
+              child: !_entriesLoaded
                   ? const EmptyState(
-                      message: 'No entries under selected event.',
+                      message: 'Choose filters and tap Load Entries.',
+                    )
+                  : _entriesLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _entries.isEmpty
+                  ? const EmptyState(
+                      message: 'No entries under selected filters.',
                     )
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

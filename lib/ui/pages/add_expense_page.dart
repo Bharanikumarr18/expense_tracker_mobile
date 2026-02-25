@@ -27,6 +27,10 @@ class _AddExpensePageState extends State<AddExpensePage> {
   List<Category> _categories = const [];
   List<ExpenseEntry> _entries = const [];
   List<EventSummary> _events = const [];
+  bool _entriesLoaded = false;
+  bool _entriesLoading = false;
+  int? _filterCategoryId;
+  int? _filterSubcategoryId;
 
   int? _selectedCategoryId;
   int? _selectedSubcategoryId;
@@ -95,25 +99,31 @@ class _AddExpensePageState extends State<AddExpensePage> {
     });
     try {
       final categories = await widget.repo.getExpenseCategories();
-      final entries = await widget.repo.getExpenses(
-        from: monthStart(_filterMonth),
-        to: monthEnd(_filterMonth),
-      );
       final events = await widget.repo.getEvents();
 
       if (!mounted) return;
 
       setState(() {
         _categories = categories;
+        if (_selectedCategoryId != null &&
+            !categories.any((c) => c.id == _selectedCategoryId)) {
+          _selectedCategoryId = null;
+        }
         if (_selectedCategoryId == null && categories.isNotEmpty) {
           _selectedCategoryId = categories.first.id;
+        }
+        if (_selectedSubcategoryId != null &&
+            (_selectedCategory == null ||
+                !_selectedCategory!.subcategories.any(
+                  (s) => s.id == _selectedSubcategoryId,
+                ))) {
+          _selectedSubcategoryId = null;
         }
         if (_selectedSubcategoryId == null &&
             _selectedCategory != null &&
             _selectedCategory!.subcategories.isNotEmpty) {
           _selectedSubcategoryId = _selectedCategory!.subcategories.first.id;
         }
-        _entries = entries;
         _events = events;
         if (_selectedEvent == null && events.isNotEmpty) {
           _selectedEvent = events.first;
@@ -121,6 +131,9 @@ class _AddExpensePageState extends State<AddExpensePage> {
 
         _advRenameCatId ??= categories.isNotEmpty ? categories.first.id : null;
         _advDeleteCatId ??= categories.isNotEmpty ? categories.first.id : null;
+
+        _filterCategoryId ??= null;
+        _filterSubcategoryId ??= null;
 
         final renameCat = categories
             .where((c) => c.id == _advRenameCatId)
@@ -155,10 +168,39 @@ class _AddExpensePageState extends State<AddExpensePage> {
         }
         _loading = false;
       });
+      if (_entriesLoaded) {
+        await _loadEntries();
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _loading = false;
+        _error = e.toString();
+      });
+    }
+  }
+
+  Future<void> _loadEntries() async {
+    setState(() {
+      _entriesLoading = true;
+      _entriesLoaded = true;
+    });
+    try {
+      final entries = await widget.repo.getExpenses(
+        from: monthStart(_filterMonth),
+        to: monthEnd(_filterMonth),
+        categoryId: _filterCategoryId,
+        subcategoryId: _filterSubcategoryId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _entries = entries;
+        _entriesLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _entriesLoading = false;
         _error = e.toString();
       });
     }
@@ -243,6 +285,9 @@ class _AddExpensePageState extends State<AddExpensePage> {
       _amountCtrl.text = '0';
       _newEventNameCtrl.clear();
       await _refreshAll();
+      if (_entriesLoaded) {
+        await _loadEntries();
+      }
 
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -259,6 +304,23 @@ class _AddExpensePageState extends State<AddExpensePage> {
   Future<void> _editEntry(ExpenseEntry e) async {
     final amountCtrl = TextEditingController(text: e.amount.toStringAsFixed(2));
     DateTime selectedDate = e.date;
+    int? selectedCatId = _categories
+        .where((c) => c.name == e.category)
+        .cast<Category?>()
+        .firstWhere((c) => c != null, orElse: () => null)
+        ?.id;
+    int? selectedSubId;
+    if (selectedCatId != null) {
+      final cat = _categories.firstWhere(
+        (c) => c.id == selectedCatId,
+        orElse: () => const Category(id: -1, name: '', subcategories: []),
+      );
+      selectedSubId = cat.subcategories
+          .where((s) => s.name == e.subcategory)
+          .cast<Subcategory?>()
+          .firstWhere((s) => s != null, orElse: () => null)
+          ?.id;
+    }
 
     final ok = await showDialog<bool>(
       context: context,
@@ -267,6 +329,10 @@ class _AddExpensePageState extends State<AddExpensePage> {
           title: const Text('Edit Expense'),
           content: StatefulBuilder(
             builder: (context, setState) {
+              final cat = _categories
+                  .where((c) => c.id == selectedCatId)
+                  .cast<Category?>()
+                  .firstWhere((c) => c != null, orElse: () => null);
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -283,6 +349,48 @@ class _AddExpensePageState extends State<AddExpensePage> {
                       }
                     },
                     child: Text(formatIsoDate(selectedDate)),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<int>(
+                    value: selectedCatId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Category'),
+                    items: _categories
+                        .map(
+                          (c) => DropdownMenuItem(
+                            value: c.id,
+                            child: Text(c.name),
+                          ),
+                        )
+                        .toList(growable: false),
+                    onChanged: (v) {
+                      setState(() {
+                        selectedCatId = v;
+                        final nextCat = _categories
+                            .where((c) => c.id == v)
+                            .cast<Category?>()
+                            .firstWhere((c) => c != null, orElse: () => null);
+                        selectedSubId =
+                            nextCat?.subcategories.isNotEmpty == true
+                            ? nextCat!.subcategories.first.id
+                            : null;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<int>(
+                    value: selectedSubId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Subcategory'),
+                    items: (cat?.subcategories ?? const <Subcategory>[])
+                        .map(
+                          (s) => DropdownMenuItem(
+                            value: s.id,
+                            child: Text(s.name),
+                          ),
+                        )
+                        .toList(growable: false),
+                    onChanged: (v) => setState(() => selectedSubId = v),
                   ),
                   const SizedBox(height: 8),
                   TextField(
@@ -315,7 +423,13 @@ class _AddExpensePageState extends State<AddExpensePage> {
     final amount = double.tryParse(amountCtrl.text.trim());
     if (amount == null || amount <= 0) return;
 
-    await widget.repo.updateExpense(e.id, date: selectedDate, amount: amount);
+    await widget.repo.updateExpense(
+      e.id,
+      date: selectedDate,
+      amount: amount,
+      categoryId: selectedCatId,
+      subcategoryId: selectedSubId,
+    );
     await _refreshAll();
   }
 
@@ -509,6 +623,12 @@ class _AddExpensePageState extends State<AddExpensePage> {
           ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 10),
+        if (_categories.isEmpty) ...[
+          const EmptyState(
+            message: 'No categories yet. Add them in Advanced section below.',
+          ),
+          const SizedBox(height: 8),
+        ],
         Card(
           child: Padding(
             padding: const EdgeInsets.all(12),
@@ -524,6 +644,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
                           Expanded(
                             child: DropdownButtonFormField<int>(
                               value: _selectedCategoryId,
+                              isExpanded: true,
                               decoration: const InputDecoration(
                                 labelText: 'Category',
                               ),
@@ -535,22 +656,26 @@ class _AddExpensePageState extends State<AddExpensePage> {
                                     ),
                                   )
                                   .toList(growable: false),
-                              onChanged: (v) {
-                                setState(() {
-                                  _selectedCategoryId = v;
-                                  final next = _selectedCategory;
-                                  _selectedSubcategoryId =
-                                      next?.subcategories.isNotEmpty == true
-                                      ? next!.subcategories.first.id
-                                      : null;
-                                });
-                              },
+                              onChanged: _categories.isEmpty
+                                  ? null
+                                  : (v) {
+                                      setState(() {
+                                        _selectedCategoryId = v;
+                                        final next = _selectedCategory;
+                                        _selectedSubcategoryId =
+                                            next?.subcategories.isNotEmpty ==
+                                                true
+                                            ? next!.subcategories.first.id
+                                            : null;
+                                      });
+                                    },
                             ),
                           ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: DropdownButtonFormField<int>(
                               value: _selectedSubcategoryId,
+                              isExpanded: true,
                               decoration: const InputDecoration(
                                 labelText: 'Subcategory',
                               ),
@@ -562,8 +687,11 @@ class _AddExpensePageState extends State<AddExpensePage> {
                                     ),
                                   )
                                   .toList(growable: false),
-                              onChanged: (v) =>
-                                  setState(() => _selectedSubcategoryId = v),
+                              onChanged: subs.isEmpty
+                                  ? null
+                                  : (v) => setState(
+                                      () => _selectedSubcategoryId = v,
+                                    ),
                             ),
                           ),
                         ],
@@ -574,6 +702,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
                       children: [
                         DropdownButtonFormField<int>(
                           value: _selectedCategoryId,
+                          isExpanded: true,
                           decoration: const InputDecoration(
                             labelText: 'Category',
                           ),
@@ -585,20 +714,23 @@ class _AddExpensePageState extends State<AddExpensePage> {
                                 ),
                               )
                               .toList(growable: false),
-                          onChanged: (v) {
-                            setState(() {
-                              _selectedCategoryId = v;
-                              final next = _selectedCategory;
-                              _selectedSubcategoryId =
-                                  next?.subcategories.isNotEmpty == true
-                                  ? next!.subcategories.first.id
-                                  : null;
-                            });
-                          },
+                          onChanged: _categories.isEmpty
+                              ? null
+                              : (v) {
+                                  setState(() {
+                                    _selectedCategoryId = v;
+                                    final next = _selectedCategory;
+                                    _selectedSubcategoryId =
+                                        next?.subcategories.isNotEmpty == true
+                                        ? next!.subcategories.first.id
+                                        : null;
+                                  });
+                                },
                         ),
                         const SizedBox(height: 8),
                         DropdownButtonFormField<int>(
                           value: _selectedSubcategoryId,
+                          isExpanded: true,
                           decoration: const InputDecoration(
                             labelText: 'Subcategory',
                           ),
@@ -610,8 +742,10 @@ class _AddExpensePageState extends State<AddExpensePage> {
                                 ),
                               )
                               .toList(growable: false),
-                          onChanged: (v) =>
-                              setState(() => _selectedSubcategoryId = v),
+                          onChanged: subs.isEmpty
+                              ? null
+                              : (v) =>
+                                    setState(() => _selectedSubcategoryId = v),
                         ),
                       ],
                     );
@@ -669,6 +803,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
                   if (_useExistingEvent)
                     DropdownButtonFormField<EventSummary>(
                       value: _selectedEvent,
+                      isExpanded: true,
                       decoration: const InputDecoration(
                         labelText: 'Select Event',
                       ),
@@ -967,97 +1102,198 @@ class _AddExpensePageState extends State<AddExpensePage> {
                   runSpacing: 8,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Text(
-                      'Filter Month',
-                      style: Theme.of(context).textTheme.titleMedium,
+                    SizedBox(
+                      width: 150,
+                      child: DropdownButtonFormField<DateTime>(
+                        value: _filterMonth,
+                        isExpanded: true,
+                        decoration: const InputDecoration(labelText: 'Month'),
+                        items: List.generate(24, (i) {
+                          final d = DateTime(
+                            DateTime.now().year,
+                            DateTime.now().month - i,
+                            1,
+                          );
+                          return DropdownMenuItem(
+                            value: d,
+                            child: Text(
+                              '${d.year}-${d.month.toString().padLeft(2, '0')}',
+                            ),
+                          );
+                        }),
+                        onChanged: (v) {
+                          setState(() {
+                            _filterMonth = v ?? _filterMonth;
+                            _entriesLoaded = false;
+                            _entries = const [];
+                          });
+                        },
+                      ),
                     ),
-                    DropdownButton<DateTime>(
-                      value: _filterMonth,
-                      items: List.generate(24, (i) {
-                        final d = DateTime(
-                          DateTime.now().year,
-                          DateTime.now().month - i,
-                          1,
-                        );
-                        return DropdownMenuItem(
-                          value: d,
-                          child: Text(
-                            '${d.year}-${d.month.toString().padLeft(2, '0')}',
+                    SizedBox(
+                      width: 170,
+                      child: DropdownButtonFormField<int?>(
+                        value: _filterCategoryId,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Category',
+                        ),
+                        items: [
+                          const DropdownMenuItem<int?>(
+                            value: null,
+                            child: Text('All categories'),
                           ),
-                        );
-                      }),
-                      onChanged: (v) async {
-                        setState(() => _filterMonth = v ?? _filterMonth);
-                        await _refreshAll();
-                      },
+                          ..._categories.map(
+                            (c) => DropdownMenuItem(
+                              value: c.id,
+                              child: Text(c.name),
+                            ),
+                          ),
+                        ],
+                        onChanged: (v) {
+                          setState(() {
+                            _filterCategoryId = v;
+                            _filterSubcategoryId = null;
+                            _entriesLoaded = false;
+                            _entries = const [];
+                          });
+                        },
+                      ),
                     ),
-                    OutlinedButton(
-                      onPressed: _refreshAll,
-                      child: const Text('Refresh'),
+                    SizedBox(
+                      width: 190,
+                      child: DropdownButtonFormField<int?>(
+                        value: _filterSubcategoryId,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Subcategory',
+                        ),
+                        items: [
+                          const DropdownMenuItem<int?>(
+                            value: null,
+                            child: Text('All subcategories'),
+                          ),
+                          ...(_categories
+                                  .firstWhere(
+                                    (c) => c.id == _filterCategoryId,
+                                    orElse: () => const Category(
+                                      id: -1,
+                                      name: '',
+                                      subcategories: [],
+                                    ),
+                                  )
+                                  .subcategories)
+                              .map(
+                                (s) => DropdownMenuItem(
+                                  value: s.id,
+                                  child: Text(s.name),
+                                ),
+                              ),
+                        ],
+                        onChanged: _filterCategoryId == null
+                            ? null
+                            : (v) {
+                                setState(() {
+                                  _filterSubcategoryId = v;
+                                  _entriesLoaded = false;
+                                  _entries = const [];
+                                });
+                              },
+                      ),
+                    ),
+                    ElevatedButton(
+                      onPressed: _entriesLoading ? null : _loadEntries,
+                      child: const Text('Load Entries'),
                     ),
                   ],
                 ),
                 const Divider(),
-                if (_entries.isEmpty)
+                if (!_entriesLoaded)
                   const EmptyState(
-                    message: 'No expense entries for selected month.',
+                    message: 'Choose filters and tap Load Entries.',
+                  )
+                else if (_entriesLoading)
+                  const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (_entries.isEmpty)
+                  const EmptyState(
+                    message: 'No expense entries for selected filters.',
                   )
                 else ...[
                   for (final e in _entries)
                     Card(
-                      child: ListTile(
-                        dense: true,
-                        title: Text(
-                          '${formatIsoDate(e.date)} • ${e.category} / ${e.subcategory}',
-                        ),
-                        subtitle: e.isEvent
-                            ? Text(
-                                '${e.eventName ?? ''} | ${formatIsoDate(e.eventStart ?? e.date)}${(e.eventStart == e.eventEnd) ? '' : ' → ${formatIsoDate(e.eventEnd ?? e.date)}'}',
-                              )
-                            : null,
-                        trailing: SizedBox(
-                          width: 120,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                formatCurrency(e.amount),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
+                      child: Padding(
+                        padding: const EdgeInsets.all(10),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  IconButton(
-                                    onPressed: () => _editEntry(e),
-                                    icon: const Icon(Icons.edit_outlined),
-                                    iconSize: 18,
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints.tightFor(
-                                      width: 32,
-                                      height: 32,
-                                    ),
+                                  Text(
+                                    '${formatIsoDate(e.date)} • ${e.category} / ${e.subcategory}',
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  IconButton(
-                                    onPressed: () async {
-                                      await widget.repo.deleteExpense(e.id);
-                                      await _refreshAll();
-                                    },
-                                    icon: const Icon(Icons.delete_outline),
-                                    iconSize: 18,
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints.tightFor(
-                                      width: 32,
-                                      height: 32,
+                                  if (e.isEvent)
+                                    Text(
+                                      '${e.eventName ?? ''} | ${formatIsoDate(e.eventStart ?? e.date)}${(e.eventStart == e.eventEnd) ? '' : ' → ${formatIsoDate(e.eventEnd ?? e.date)}'}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodySmall,
                                     ),
-                                  ),
                                 ],
                               ),
-                            ],
-                          ),
+                            ),
+                            const SizedBox(width: 8),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  formatCurrency(e.amount),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      onPressed: () => _editEntry(e),
+                                      icon: const Icon(Icons.edit_outlined),
+                                      iconSize: 18,
+                                      padding: EdgeInsets.zero,
+                                      constraints:
+                                          const BoxConstraints.tightFor(
+                                            width: 30,
+                                            height: 30,
+                                          ),
+                                    ),
+                                    IconButton(
+                                      onPressed: () async {
+                                        await widget.repo.deleteExpense(e.id);
+                                        await _loadEntries();
+                                      },
+                                      icon: const Icon(Icons.delete_outline),
+                                      iconSize: 18,
+                                      padding: EdgeInsets.zero,
+                                      constraints:
+                                          const BoxConstraints.tightFor(
+                                            width: 30,
+                                            height: 30,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                     ),

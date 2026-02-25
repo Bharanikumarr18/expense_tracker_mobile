@@ -67,4 +67,16 @@ class AppController extends ChangeNotifier {
     final docs = await getApplicationDocumentsDirectory();
     return '${docs.path}/tracker_exports';
   }
+
+  Future<void> wipeDatabase() async {
+    await repo.clearAllData();
+    _themeName = TrackerTheme.defaultThemeName;
+    _customExportDirectory = null;
+    notifyListeners();
+  }
+
+  Future<void> restoreDefaultCategories() async {
+    await repo.restoreDefaultCategories();
+    notifyListeners();
+  }
 }

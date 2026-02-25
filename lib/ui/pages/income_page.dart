@@ -27,6 +27,10 @@ class _IncomePageState extends State<IncomePage> {
   String? _error;
   List<Category> _categories = const [];
   List<IncomeEntry> _entries = const [];
+  bool _entriesLoaded = false;
+  bool _entriesLoading = false;
+  int? _filterCategoryId;
+  int? _filterSubcategoryId;
 
   int? _categoryId;
   int? _subId;
@@ -106,7 +110,6 @@ class _IncomePageState extends State<IncomePage> {
     try {
       final categories = await widget.repo.getIncomeCategories();
       final (from, to) = _incomeRange();
-      final entries = await widget.repo.getIncomes(from: from, to: to);
       final catTotals = await widget.repo.incomeTotalsByCategory(
         from: from,
         to: to,
@@ -119,7 +122,16 @@ class _IncomePageState extends State<IncomePage> {
       if (!mounted) return;
       setState(() {
         _categories = categories;
+        if (_categoryId != null &&
+            !categories.any((c) => c.id == _categoryId)) {
+          _categoryId = null;
+        }
         _categoryId ??= categories.isNotEmpty ? categories.first.id : null;
+        if (_subId != null &&
+            (_selectedCategory == null ||
+                !_selectedCategory!.subcategories.any((s) => s.id == _subId))) {
+          _subId = null;
+        }
         _subId ??= _selectedCategory?.subcategories.isNotEmpty == true
             ? _selectedCategory!.subcategories.first.id
             : null;
@@ -158,15 +170,46 @@ class _IncomePageState extends State<IncomePage> {
                 : null;
           }
         }
-        _entries = entries;
         _catTotals = catTotals;
         _subTotals = subTotals;
+        _filterCategoryId ??= null;
+        _filterSubcategoryId ??= null;
         _loading = false;
       });
+      if (_entriesLoaded) {
+        await _loadEntries();
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _loading = false;
+        _error = e.toString();
+      });
+    }
+  }
+
+  Future<void> _loadEntries() async {
+    setState(() {
+      _entriesLoading = true;
+      _entriesLoaded = true;
+    });
+    try {
+      final (from, to) = _incomeRange();
+      final entries = await widget.repo.getIncomes(
+        from: from,
+        to: to,
+        categoryId: _filterCategoryId,
+        subcategoryId: _filterSubcategoryId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _entries = entries;
+        _entriesLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _entriesLoading = false;
         _error = e.toString();
       });
     }
@@ -205,6 +248,9 @@ class _IncomePageState extends State<IncomePage> {
     );
     _amountCtrl.text = '0';
     await _refresh();
+    if (_entriesLoaded) {
+      await _loadEntries();
+    }
     if (!mounted) return;
     ScaffoldMessenger.of(
       context,
@@ -214,37 +260,107 @@ class _IncomePageState extends State<IncomePage> {
   Future<void> _editIncome(IncomeEntry e) async {
     final amountCtrl = TextEditingController(text: e.amount.toStringAsFixed(2));
     DateTime date = e.date;
+    int? selectedCatId = _categories
+        .where((c) => c.name == e.category)
+        .cast<Category?>()
+        .firstWhere((c) => c != null, orElse: () => null)
+        ?.id;
+    int? selectedSubId;
+    if (selectedCatId != null) {
+      final cat = _categories.firstWhere(
+        (c) => c.id == selectedCatId,
+        orElse: () => const Category(id: -1, name: '', subcategories: []),
+      );
+      selectedSubId = cat.subcategories
+          .where((s) => s.name == e.subcategory)
+          .cast<Subcategory?>()
+          .firstWhere((s) => s != null, orElse: () => null)
+          ?.id;
+    }
 
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Edit Income'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            OutlinedButton(
-              onPressed: () async {
-                final d = await showDatePicker(
-                  context: context,
-                  initialDate: date,
-                  firstDate: DateTime(2000),
-                  lastDate: DateTime(2100),
-                );
-                if (d != null) {
-                  date = d;
-                }
-              },
-              child: Text(formatIsoDate(date)),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: amountCtrl,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              decoration: const InputDecoration(labelText: 'Amount'),
-            ),
-          ],
+        content: StatefulBuilder(
+          builder: (context, setState) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                OutlinedButton(
+                  onPressed: () async {
+                    final d = await showDatePicker(
+                      context: context,
+                      initialDate: date,
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime(2100),
+                    );
+                    if (d != null) {
+                      setState(() => date = d);
+                    }
+                  },
+                  child: Text(formatIsoDate(date)),
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<int>(
+                  value: selectedCatId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Category'),
+                  items: _categories
+                      .map(
+                        (c) =>
+                            DropdownMenuItem(value: c.id, child: Text(c.name)),
+                      )
+                      .toList(growable: false),
+                  onChanged: (v) {
+                    setState(() {
+                      selectedCatId = v;
+                      final nextCat = _categories
+                          .where((c) => c.id == v)
+                          .cast<Category?>()
+                          .firstWhere((c) => c != null, orElse: () => null);
+                      selectedSubId = nextCat?.subcategories.isNotEmpty == true
+                          ? nextCat!.subcategories.first.id
+                          : null;
+                    });
+                  },
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<int>(
+                  value: selectedSubId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Subcategory'),
+                  items:
+                      (_categories
+                              .firstWhere(
+                                (c) => c.id == selectedCatId,
+                                orElse: () => const Category(
+                                  id: -1,
+                                  name: '',
+                                  subcategories: [],
+                                ),
+                              )
+                              .subcategories)
+                          .map(
+                            (s) => DropdownMenuItem(
+                              value: s.id,
+                              child: Text(s.name),
+                            ),
+                          )
+                          .toList(growable: false),
+                  onChanged: (v) => setState(() => selectedSubId = v),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: amountCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(labelText: 'Amount'),
+                ),
+              ],
+            );
+          },
         ),
         actions: [
           TextButton(
@@ -262,7 +378,13 @@ class _IncomePageState extends State<IncomePage> {
     if (ok != true) return;
     final amount = double.tryParse(amountCtrl.text.trim());
     if (amount == null || amount <= 0) return;
-    await widget.repo.updateIncome(e.id, date: date, amount: amount);
+    await widget.repo.updateIncome(
+      e.id,
+      date: date,
+      amount: amount,
+      categoryId: selectedCatId,
+      subcategoryId: selectedSubId,
+    );
     await _refresh();
   }
 
@@ -442,6 +564,12 @@ class _IncomePageState extends State<IncomePage> {
           ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 10),
+        if (_categories.isEmpty) ...[
+          const EmptyState(
+            message: 'No income categories yet. Add them below.',
+          ),
+          const SizedBox(height: 8),
+        ],
         Card(
           child: Padding(
             padding: const EdgeInsets.all(12),
@@ -457,6 +585,7 @@ class _IncomePageState extends State<IncomePage> {
                           Expanded(
                             child: DropdownButtonFormField<int>(
                               value: _categoryId,
+                              isExpanded: true,
                               decoration: const InputDecoration(
                                 labelText: 'Category',
                               ),
@@ -468,27 +597,30 @@ class _IncomePageState extends State<IncomePage> {
                                     ),
                                   )
                                   .toList(growable: false),
-                              onChanged: (v) {
-                                setState(() {
-                                  _categoryId = v;
-                                  _subId =
-                                      _selectedCategory
-                                              ?.subcategories
-                                              .isNotEmpty ==
-                                          true
-                                      ? _selectedCategory!
-                                            .subcategories
-                                            .first
-                                            .id
-                                      : null;
-                                });
-                              },
+                              onChanged: _categories.isEmpty
+                                  ? null
+                                  : (v) {
+                                      setState(() {
+                                        _categoryId = v;
+                                        _subId =
+                                            _selectedCategory
+                                                    ?.subcategories
+                                                    .isNotEmpty ==
+                                                true
+                                            ? _selectedCategory!
+                                                  .subcategories
+                                                  .first
+                                                  .id
+                                            : null;
+                                      });
+                                    },
                             ),
                           ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: DropdownButtonFormField<int>(
                               value: _subId,
+                              isExpanded: true,
                               decoration: const InputDecoration(
                                 labelText: 'Subcategory',
                               ),
@@ -500,7 +632,9 @@ class _IncomePageState extends State<IncomePage> {
                                     ),
                                   )
                                   .toList(growable: false),
-                              onChanged: (v) => setState(() => _subId = v),
+                              onChanged: subs.isEmpty
+                                  ? null
+                                  : (v) => setState(() => _subId = v),
                             ),
                           ),
                         ],
@@ -510,6 +644,7 @@ class _IncomePageState extends State<IncomePage> {
                       children: [
                         DropdownButtonFormField<int>(
                           value: _categoryId,
+                          isExpanded: true,
                           decoration: const InputDecoration(
                             labelText: 'Category',
                           ),
@@ -521,20 +656,28 @@ class _IncomePageState extends State<IncomePage> {
                                 ),
                               )
                               .toList(growable: false),
-                          onChanged: (v) {
-                            setState(() {
-                              _categoryId = v;
-                              _subId =
-                                  _selectedCategory?.subcategories.isNotEmpty ==
-                                      true
-                                  ? _selectedCategory!.subcategories.first.id
-                                  : null;
-                            });
-                          },
+                          onChanged: _categories.isEmpty
+                              ? null
+                              : (v) {
+                                  setState(() {
+                                    _categoryId = v;
+                                    _subId =
+                                        _selectedCategory
+                                                ?.subcategories
+                                                .isNotEmpty ==
+                                            true
+                                        ? _selectedCategory!
+                                              .subcategories
+                                              .first
+                                              .id
+                                        : null;
+                                  });
+                                },
                         ),
                         const SizedBox(height: 8),
                         DropdownButtonFormField<int>(
                           value: _subId,
+                          isExpanded: true,
                           decoration: const InputDecoration(
                             labelText: 'Subcategory',
                           ),
@@ -546,7 +689,9 @@ class _IncomePageState extends State<IncomePage> {
                                 ),
                               )
                               .toList(growable: false),
-                          onChanged: (v) => setState(() => _subId = v),
+                          onChanged: subs.isEmpty
+                              ? null
+                              : (v) => setState(() => _subId = v),
                         ),
                       ],
                     );
@@ -818,65 +963,91 @@ class _IncomePageState extends State<IncomePage> {
               children: [
                 Wrap(
                   spacing: 8,
+                  runSpacing: 8,
                   children: [
-                    DropdownButton<IncomeFilterMode>(
-                      value: _filterMode,
-                      items: const [
-                        DropdownMenuItem(
-                          value: IncomeFilterMode.monthly,
-                          child: Text('Monthly'),
-                        ),
-                        DropdownMenuItem(
-                          value: IncomeFilterMode.yearly,
-                          child: Text('Yearly'),
-                        ),
-                        DropdownMenuItem(
-                          value: IncomeFilterMode.custom,
-                          child: Text('Custom'),
-                        ),
-                      ],
-                      onChanged: (v) async {
-                        setState(
-                          () => _filterMode = v ?? IncomeFilterMode.monthly,
-                        );
-                        await _refresh();
-                      },
-                    ),
-                    if (_filterMode == IncomeFilterMode.monthly)
-                      DropdownButton<DateTime>(
-                        value: _filterMonth,
-                        items: List.generate(24, (i) {
-                          final d = DateTime(
-                            DateTime.now().year,
-                            DateTime.now().month - i,
-                            1,
-                          );
-                          return DropdownMenuItem(
-                            value: d,
-                            child: Text(
-                              '${d.year}-${d.month.toString().padLeft(2, '0')}',
-                            ),
-                          );
-                        }),
+                    SizedBox(
+                      width: 140,
+                      child: DropdownButtonFormField<IncomeFilterMode>(
+                        value: _filterMode,
+                        isExpanded: true,
+                        decoration: const InputDecoration(labelText: 'Mode'),
+                        items: const [
+                          DropdownMenuItem(
+                            value: IncomeFilterMode.monthly,
+                            child: Text('Monthly'),
+                          ),
+                          DropdownMenuItem(
+                            value: IncomeFilterMode.yearly,
+                            child: Text('Yearly'),
+                          ),
+                          DropdownMenuItem(
+                            value: IncomeFilterMode.custom,
+                            child: Text('Custom'),
+                          ),
+                        ],
                         onChanged: (v) async {
-                          setState(() => _filterMonth = v ?? _filterMonth);
+                          setState(() {
+                            _filterMode = v ?? IncomeFilterMode.monthly;
+                            _entriesLoaded = false;
+                            _entries = const [];
+                          });
                           await _refresh();
                         },
                       ),
+                    ),
+                    if (_filterMode == IncomeFilterMode.monthly)
+                      SizedBox(
+                        width: 150,
+                        child: DropdownButtonFormField<DateTime>(
+                          value: _filterMonth,
+                          isExpanded: true,
+                          decoration: const InputDecoration(labelText: 'Month'),
+                          items: List.generate(24, (i) {
+                            final d = DateTime(
+                              DateTime.now().year,
+                              DateTime.now().month - i,
+                              1,
+                            );
+                            return DropdownMenuItem(
+                              value: d,
+                              child: Text(
+                                '${d.year}-${d.month.toString().padLeft(2, '0')}',
+                              ),
+                            );
+                          }),
+                          onChanged: (v) async {
+                            setState(() {
+                              _filterMonth = v ?? _filterMonth;
+                              _entriesLoaded = false;
+                              _entries = const [];
+                            });
+                            await _refresh();
+                          },
+                        ),
+                      ),
                     if (_filterMode == IncomeFilterMode.yearly)
-                      DropdownButton<int>(
-                        value: _filterYear,
-                        items: List.generate(10, (i) {
-                          final y = DateTime.now().year - i;
-                          return DropdownMenuItem(
-                            value: y,
-                            child: Text(y.toString()),
-                          );
-                        }),
-                        onChanged: (v) async {
-                          setState(() => _filterYear = v ?? _filterYear);
-                          await _refresh();
-                        },
+                      SizedBox(
+                        width: 120,
+                        child: DropdownButtonFormField<int>(
+                          value: _filterYear,
+                          isExpanded: true,
+                          decoration: const InputDecoration(labelText: 'Year'),
+                          items: List.generate(10, (i) {
+                            final y = DateTime.now().year - i;
+                            return DropdownMenuItem(
+                              value: y,
+                              child: Text(y.toString()),
+                            );
+                          }),
+                          onChanged: (v) async {
+                            setState(() {
+                              _filterYear = v ?? _filterYear;
+                              _entriesLoaded = false;
+                              _entries = const [];
+                            });
+                            await _refresh();
+                          },
+                        ),
                       ),
                     if (_filterMode == IncomeFilterMode.custom)
                       OutlinedButton(
@@ -887,6 +1058,8 @@ class _IncomePageState extends State<IncomePage> {
                             if (_filterCustomTo.isBefore(d)) {
                               _filterCustomTo = d;
                             }
+                            _entriesLoaded = false;
+                            _entries = const [];
                           }),
                         ),
                         child: Text(
@@ -902,19 +1075,92 @@ class _IncomePageState extends State<IncomePage> {
                             if (_filterCustomTo.isBefore(_filterCustomFrom)) {
                               _filterCustomFrom = d;
                             }
+                            _entriesLoaded = false;
+                            _entries = const [];
                           }),
                         ),
                         child: Text('To: ${formatIsoDate(_filterCustomTo)}'),
                       ),
-                    OutlinedButton(
-                      onPressed: _refresh,
-                      child: const Text('Refresh'),
+                    SizedBox(
+                      width: 170,
+                      child: DropdownButtonFormField<int?>(
+                        value: _filterCategoryId,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Category',
+                        ),
+                        items: [
+                          const DropdownMenuItem<int?>(
+                            value: null,
+                            child: Text('All categories'),
+                          ),
+                          ..._categories.map(
+                            (c) => DropdownMenuItem(
+                              value: c.id,
+                              child: Text(c.name),
+                            ),
+                          ),
+                        ],
+                        onChanged: (v) {
+                          setState(() {
+                            _filterCategoryId = v;
+                            _filterSubcategoryId = null;
+                            _entriesLoaded = false;
+                            _entries = const [];
+                          });
+                        },
+                      ),
+                    ),
+                    SizedBox(
+                      width: 190,
+                      child: DropdownButtonFormField<int?>(
+                        value: _filterSubcategoryId,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Subcategory',
+                        ),
+                        items: [
+                          const DropdownMenuItem<int?>(
+                            value: null,
+                            child: Text('All subcategories'),
+                          ),
+                          ...(_categories
+                                  .firstWhere(
+                                    (c) => c.id == _filterCategoryId,
+                                    orElse: () => const Category(
+                                      id: -1,
+                                      name: '',
+                                      subcategories: [],
+                                    ),
+                                  )
+                                  .subcategories)
+                              .map(
+                                (s) => DropdownMenuItem(
+                                  value: s.id,
+                                  child: Text(s.name),
+                                ),
+                              ),
+                        ],
+                        onChanged: _filterCategoryId == null
+                            ? null
+                            : (v) {
+                                setState(() {
+                                  _filterSubcategoryId = v;
+                                  _entriesLoaded = false;
+                                  _entries = const [];
+                                });
+                              },
+                      ),
+                    ),
+                    ElevatedButton(
+                      onPressed: _entriesLoading ? null : _loadEntries,
+                      child: const Text('Load Entries'),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Selected period income: ${formatCurrency(_entries.fold<double>(0, (a, b) => a + b.amount))}',
+                  'Selected period income: ${formatCurrency(_catTotals.fold<double>(0, (a, b) => a + b.amount))}',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 8),
@@ -945,67 +1191,84 @@ class _IncomePageState extends State<IncomePage> {
                   },
                 ),
                 const Divider(),
-                if (_entries.isEmpty)
+                if (!_entriesLoaded)
                   const EmptyState(
-                    message: 'No income entries for selected month.',
+                    message: 'Choose filters and tap Load Entries.',
+                  )
+                else if (_entriesLoading)
+                  const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (_entries.isEmpty)
+                  const EmptyState(
+                    message: 'No income entries for selected filters.',
                   )
                 else ...[
                   for (final e in _entries)
                     Card(
-                      child: ListTile(
-                        dense: true,
-                        title: Text(
-                          '${formatIsoDate(e.date)} • ${e.category} / ${e.subcategory}',
-                        ),
-                        trailing: SizedBox(
-                          width: 120,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                formatCurrency(e.amount),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
+                      child: Padding(
+                        padding: const EdgeInsets.all(10),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '${formatIsoDate(e.date)} • ${e.category} / ${e.subcategory}',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  formatCurrency(e.amount),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 6),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  IconButton(
-                                    onPressed: () => _editIncome(e),
-                                    icon: const Icon(Icons.edit_outlined),
-                                    iconSize: 18,
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints.tightFor(
-                                      width: 32,
-                                      height: 32,
+                                const SizedBox(height: 6),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      onPressed: () => _editIncome(e),
+                                      icon: const Icon(Icons.edit_outlined),
+                                      iconSize: 18,
+                                      padding: EdgeInsets.zero,
+                                      constraints:
+                                          const BoxConstraints.tightFor(
+                                            width: 30,
+                                            height: 30,
+                                          ),
                                     ),
-                                  ),
-                                  IconButton(
-                                    onPressed: () async {
-                                      await widget.repo.deleteIncome(e.id);
-                                      await _refresh();
-                                    },
-                                    icon: const Icon(Icons.delete_outline),
-                                    iconSize: 18,
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints.tightFor(
-                                      width: 32,
-                                      height: 32,
+                                    IconButton(
+                                      onPressed: () async {
+                                        await widget.repo.deleteIncome(e.id);
+                                        await _loadEntries();
+                                      },
+                                      icon: const Icon(Icons.delete_outline),
+                                      iconSize: 18,
+                                      padding: EdgeInsets.zero,
+                                      constraints:
+                                          const BoxConstraints.tightFor(
+                                            width: 30,
+                                            height: 30,
+                                          ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   const SizedBox(height: 8),
                   Text(
-                    'Month Total: ${formatCurrency(_entries.fold<double>(0, (a, b) => a + b.amount))}',
+                    'Total: ${formatCurrency(_entries.fold<double>(0, (a, b) => a + b.amount))}',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ],

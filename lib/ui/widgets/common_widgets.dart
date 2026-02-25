@@ -148,13 +148,6 @@ class _TotalsPieChartState extends State<TotalsPieChart> {
                       title: isTouched ? '${pct.toStringAsFixed(1)}%' : '',
                       titleStyle: Theme.of(context).textTheme.bodySmall
                           ?.copyWith(fontWeight: FontWeight.w700),
-                      badgeWidget: isTouched
-                          ? _TooltipBadge(
-                              text:
-                                  '${row.label}\n${formatCurrency(row.amount)} (${pct.toStringAsFixed(1)}%)',
-                            )
-                          : null,
-                      badgePositionPercentageOffset: 1.4,
                     );
                   }),
                 ),
@@ -162,6 +155,19 @@ class _TotalsPieChartState extends State<TotalsPieChart> {
                 curve: Curves.easeOutCubic,
               ),
             ),
+            if (touched >= 0 && touched < rows.length) ...[
+              const SizedBox(height: 6),
+              Builder(
+                builder: (context) {
+                  final row = rows[touched];
+                  final pct = total == 0 ? 0 : (row.amount / total) * 100;
+                  return Text(
+                    '${row.label} • ${formatCurrency(row.amount)} (${pct.toStringAsFixed(1)}%)',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  );
+                },
+              ),
+            ],
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -309,30 +315,6 @@ class TotalsBarChart extends StatelessWidget {
               }),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TooltipBadge extends StatelessWidget {
-  const _TooltipBadge({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.black.withOpacity(0.85),
-      borderRadius: BorderRadius.circular(6),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        child: Text(
-          text,
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(color: Colors.white),
-          textAlign: TextAlign.center,
         ),
       ),
     );

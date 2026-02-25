@@ -16,6 +16,7 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   final _exportPathCtrl = TextEditingController();
+  final _wipeCtrl = TextEditingController();
   bool _saving = false;
   String? _defaultExportPath;
 
@@ -29,6 +30,7 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void dispose() {
     _exportPathCtrl.dispose();
+    _wipeCtrl.dispose();
     super.dispose();
   }
 
@@ -69,6 +71,79 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Future<void> _confirmWipe() async {
+    _wipeCtrl.clear();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Erase ALL data?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'This will permanently delete all categories, entries, assets, and settings.',
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _wipeCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Type DELETE to confirm',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () =>
+                Navigator.pop(context, _wipeCtrl.text.trim() == 'DELETE'),
+            child: const Text('Erase'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      await widget.controller.wipeDatabase();
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('All data erased.')));
+    }
+  }
+
+  Future<void> _confirmRestoreDefaults() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Restore default categories?'),
+        content: const Text(
+          'This will re-add the default categories and subcategories '
+          '(existing ones are kept).',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Restore'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      await widget.controller.restoreDefaultCategories();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Default categories restored.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListView(
@@ -105,6 +180,26 @@ class _SettingsPageState extends State<SettingsPage> {
                         ),
                       )
                       .toList(growable: false),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Defaults', style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 6),
+                const Text('Re-add the built-in categories and subcategories.'),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: _saving ? null : _confirmRestoreDefaults,
+                  icon: const Icon(Icons.restore),
+                  label: const Text('Restore Default Categories'),
                 ),
               ],
             ),
@@ -173,6 +268,34 @@ class _SettingsPageState extends State<SettingsPage> {
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Card(
+          color: Theme.of(context).colorScheme.errorContainer.withOpacity(0.2),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Danger Zone',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 6),
+                const Text('Erase the entire database. This cannot be undone.'),
+                const SizedBox(height: 10),
+                ElevatedButton.icon(
+                  onPressed: _saving ? null : _confirmWipe,
+                  icon: const Icon(Icons.delete_forever_outlined),
+                  label: const Text('Erase All Data'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.error,
+                    foregroundColor: Theme.of(context).colorScheme.onError,
+                  ),
+                ),
               ],
             ),
           ),

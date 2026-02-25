@@ -102,7 +102,7 @@ class _HomeShellState extends State<HomeShell> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Padding(
-                padding: EdgeInsets.fromLTRB(16, 12, 12, 8),
+                padding: EdgeInsets.fromLTRB(12, 6, 12, 6),
                 child: Text(
                   'Finance Tracker Mobile',
                   style: TextStyle(fontWeight: FontWeight.w700),

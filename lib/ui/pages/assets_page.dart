@@ -351,11 +351,12 @@ class _AssetsPageState extends State<AssetsPage> with TickerProviderStateMixin {
 
   Widget _buildMetalTab() {
     return ListView(
-      padding: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
       children: [
         ExpansionTile(
           initiallyExpanded: true,
           title: const Text('Add Metal Asset'),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
           children: [
             DropdownButtonFormField<String>(
@@ -395,6 +396,7 @@ class _AssetsPageState extends State<AssetsPage> with TickerProviderStateMixin {
         ExpansionTile(
           initiallyExpanded: true,
           title: const Text('Metal Entries'),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
           children: [
             if (_metalEntries.isEmpty)

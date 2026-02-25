@@ -336,6 +336,20 @@ class AppDatabase {
   }
 
   Future<void> _seedDefaults(Database db) async {
+    try {
+      final rows = await db.query(
+        'app_settings',
+        columns: ['value'],
+        where: 'key=?',
+        whereArgs: ['disable_default_seed'],
+        limit: 1,
+      );
+      if (rows.isNotEmpty && rows.first['value'] == '1') {
+        return;
+      }
+    } catch (_) {
+      // If settings table is unavailable, continue with defaults.
+    }
     const expenseDefaults = <String, List<String>>{
       'Essentials': [
         'Vegetables',

@@ -4,6 +4,7 @@ import '../../data/tracker_repository.dart';
 import '../../models/models.dart';
 import '../../utils/formatters.dart';
 import '../widgets/common_widgets.dart';
+import '../widgets/entry_editing.dart';
 
 class AddExpensePage extends StatefulWidget {
   const AddExpensePage({super.key, required this.repo});
@@ -29,6 +30,8 @@ class _AddExpensePageState extends State<AddExpensePage> {
   List<EventSummary> _events = const [];
   bool _entriesLoaded = false;
   bool _entriesLoading = false;
+  double _entriesTotal = 0.0;
+  final RowEditSession _editSession = RowEditSession();
   int? _filterCategoryId;
   int? _filterSubcategoryId;
 
@@ -62,6 +65,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
 
   @override
   void dispose() {
+    _editSession.dispose();
     _amountCtrl.dispose();
     _newCatCtrl.dispose();
     _newSubCtrl.dispose();
@@ -181,6 +185,9 @@ class _AddExpensePageState extends State<AddExpensePage> {
   }
 
   Future<void> _loadEntries() async {
+    if (_editSession.editingId != null) {
+      _editSession.cancel();
+    }
     setState(() {
       _entriesLoading = true;
       _entriesLoaded = true;
@@ -195,6 +202,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
       if (!mounted) return;
       setState(() {
         _entries = entries;
+        _entriesTotal = entries.fold<double>(0, (a, b) => a + b.amount);
         _entriesLoading = false;
       });
     } catch (e) {
@@ -204,6 +212,24 @@ class _AddExpensePageState extends State<AddExpensePage> {
         _error = e.toString();
       });
     }
+  }
+
+  Future<void> _saveInlineEdit({
+    required ExpenseEntry entry,
+    required DateTime date,
+    required int? categoryId,
+    required int? subcategoryId,
+    required double amount,
+  }) async {
+    await widget.repo.updateExpense(
+      entry.id,
+      date: date,
+      amount: amount,
+      categoryId: categoryId,
+      subcategoryId: subcategoryId,
+    );
+    _editSession.cancel();
+    await _loadEntries();
   }
 
   Future<void> _pickDate({
@@ -1126,6 +1152,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
                             _filterMonth = v ?? _filterMonth;
                             _entriesLoaded = false;
                             _entries = const [];
+                            _entriesTotal = 0;
                           });
                         },
                       ),
@@ -1156,6 +1183,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
                             _filterSubcategoryId = null;
                             _entriesLoaded = false;
                             _entries = const [];
+                            _entriesTotal = 0;
                           });
                         },
                       ),
@@ -1197,6 +1225,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
                                   _filterSubcategoryId = v;
                                   _entriesLoaded = false;
                                   _entries = const [];
+                                  _entriesTotal = 0;
                                 });
                               },
                       ),
@@ -1222,84 +1251,37 @@ class _AddExpensePageState extends State<AddExpensePage> {
                     message: 'No expense entries for selected filters.',
                   )
                 else ...[
-                  for (final e in _entries)
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(10),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '${formatIsoDate(e.date)} • ${e.category} / ${e.subcategory}',
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  if (e.isEvent)
-                                    Text(
-                                      '${e.eventName ?? ''} | ${formatIsoDate(e.eventStart ?? e.date)}${(e.eventStart == e.eventEnd) ? '' : ' → ${formatIsoDate(e.eventEnd ?? e.date)}'}',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodySmall,
-                                    ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  formatCurrency(e.amount),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      onPressed: () => _editEntry(e),
-                                      icon: const Icon(Icons.edit_outlined),
-                                      iconSize: 18,
-                                      padding: EdgeInsets.zero,
-                                      constraints:
-                                          const BoxConstraints.tightFor(
-                                            width: 30,
-                                            height: 30,
-                                          ),
-                                    ),
-                                    IconButton(
-                                      onPressed: () async {
-                                        await widget.repo.deleteExpense(e.id);
-                                        await _loadEntries();
-                                      },
-                                      icon: const Icon(Icons.delete_outline),
-                                      iconSize: 18,
-                                      padding: EdgeInsets.zero,
-                                      constraints:
-                                          const BoxConstraints.tightFor(
-                                            width: 30,
-                                            height: 30,
-                                          ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ],
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final h = (MediaQuery.of(context).size.height * 0.55)
+                          .clamp(240.0, 520.0)
+                          .toDouble();
+                      return SizedBox(
+                        height: h,
+                        child: ListView.builder(
+                          itemCount: _entries.length,
+                          prototypeItem: const _ExpenseEntryPrototype(),
+                          itemBuilder: (context, index) {
+                            final e = _entries[index];
+                            return ExpenseEntryRow(
+                              key: ValueKey(e.id),
+                              entry: e,
+                              categories: _categories,
+                              session: _editSession,
+                              onSave: _saveInlineEdit,
+                              onDelete: () async {
+                                await widget.repo.deleteExpense(e.id);
+                                await _loadEntries();
+                              },
+                            );
+                          },
                         ),
-                      ),
-                    ),
+                      );
+                    },
+                  ),
                   const SizedBox(height: 8),
                   Text(
-                    'Month Total: ${formatCurrency(_entries.fold<double>(0, (a, b) => a + b.amount))}',
+                    'Month Total: ${formatCurrency(_entriesTotal)}',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ],
@@ -1308,6 +1290,359 @@ class _AddExpensePageState extends State<AddExpensePage> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class ExpenseEntryRow extends StatelessWidget {
+  const ExpenseEntryRow({
+    super.key,
+    required this.entry,
+    required this.categories,
+    required this.session,
+    required this.onSave,
+    required this.onDelete,
+  });
+
+  final ExpenseEntry entry;
+  final List<Category> categories;
+  final RowEditSession session;
+  final Future<void> Function({
+    required ExpenseEntry entry,
+    required DateTime date,
+    required int? categoryId,
+    required int? subcategoryId,
+    required double amount,
+  })
+  onSave;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: session.flagFor(entry.id),
+      builder: (context, isEditing, _) {
+        if (!isEditing || session.editingId != entry.id) {
+          return _ExpenseViewRow(
+            entry: entry,
+            onEdit: () => session.begin(
+              entry.id,
+              EntryEditController.fromAmount(entry.amount),
+            ),
+            onDelete: onDelete,
+          );
+        }
+        final controller = session.controller;
+        if (controller == null) {
+          return _ExpenseViewRow(
+            entry: entry,
+            onEdit: () => session.begin(
+              entry.id,
+              EntryEditController.fromAmount(entry.amount),
+            ),
+            onDelete: onDelete,
+          );
+        }
+        return _ExpenseEditRow(
+          entry: entry,
+          categories: categories,
+          controller: controller,
+          onCancel: session.cancel,
+          onSave: onSave,
+        );
+      },
+    );
+  }
+}
+
+class _ExpenseViewRow extends StatelessWidget {
+  const _ExpenseViewRow({
+    required this.entry,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final ExpenseEntry entry;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${formatIsoDate(entry.date)} • ${entry.category} / ${entry.subcategory}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (entry.isEvent)
+                    Text(
+                      '${entry.eventName ?? ''} | ${formatIsoDate(entry.eventStart ?? entry.date)}${(entry.eventStart == entry.eventEnd) ? '' : ' → ${formatIsoDate(entry.eventEnd ?? entry.date)}'}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  formatCurrency(entry.amount),
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      onPressed: onEdit,
+                      icon: const Icon(Icons.edit_outlined),
+                      iconSize: 18,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints.tightFor(
+                        width: 30,
+                        height: 30,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: onDelete,
+                      icon: const Icon(Icons.delete_outline),
+                      iconSize: 18,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints.tightFor(
+                        width: 30,
+                        height: 30,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ExpenseEditRow extends StatefulWidget {
+  const _ExpenseEditRow({
+    required this.entry,
+    required this.categories,
+    required this.controller,
+    required this.onCancel,
+    required this.onSave,
+  });
+
+  final ExpenseEntry entry;
+  final List<Category> categories;
+  final EntryEditController controller;
+  final VoidCallback onCancel;
+  final Future<void> Function({
+    required ExpenseEntry entry,
+    required DateTime date,
+    required int? categoryId,
+    required int? subcategoryId,
+    required double amount,
+  })
+  onSave;
+
+  @override
+  State<_ExpenseEditRow> createState() => _ExpenseEditRowState();
+}
+
+class _ExpenseEditRowState extends State<_ExpenseEditRow> {
+  late DateTime _date;
+  int? _catId;
+  int? _subId;
+
+  @override
+  void initState() {
+    super.initState();
+    _date = widget.entry.date;
+    if (widget.categories.isEmpty) return;
+    final cat = widget.categories.firstWhere(
+      (c) => c.name == widget.entry.category,
+      orElse: () => widget.categories.first,
+    );
+    _catId = cat.id;
+    if (cat.subcategories.isEmpty) {
+      _subId = null;
+    } else {
+      final sub = cat.subcategories.firstWhere(
+        (s) => s.name == widget.entry.subcategory,
+        orElse: () => cat.subcategories.first,
+      );
+      _subId = sub.id;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cat = widget.categories
+        .where((c) => c.id == _catId)
+        .cast<Category?>()
+        .firstWhere((c) => c != null, orElse: () => null);
+    final subs = cat?.subcategories ?? const <Subcategory>[];
+    return Card(
+      color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.25),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton(
+                  onPressed: () async {
+                    final d = await showDatePicker(
+                      context: context,
+                      initialDate: _date,
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime(2100),
+                    );
+                    if (d != null) {
+                      setState(() => _date = d);
+                    }
+                  },
+                  child: Text(formatIsoDate(_date)),
+                ),
+                SizedBox(
+                  width: 160,
+                  child: DropdownButtonFormField<int>(
+                    value: _catId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Category'),
+                    items: widget.categories
+                        .map(
+                          (c) => DropdownMenuItem(
+                            value: c.id,
+                            child: Text(c.name),
+                          ),
+                        )
+                        .toList(growable: false),
+                    onChanged: widget.categories.isEmpty
+                        ? null
+                        : (v) {
+                            setState(() {
+                              _catId = v;
+                              final next = widget.categories
+                                  .where((c) => c.id == v)
+                                  .cast<Category?>()
+                                  .firstWhere(
+                                    (c) => c != null,
+                                    orElse: () => null,
+                                  );
+                              _subId = next?.subcategories.isNotEmpty == true
+                                  ? next!.subcategories.first.id
+                                  : null;
+                            });
+                          },
+                  ),
+                ),
+                SizedBox(
+                  width: 160,
+                  child: DropdownButtonFormField<int>(
+                    value: _subId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Subcategory'),
+                    items: subs
+                        .map(
+                          (s) => DropdownMenuItem(
+                            value: s.id,
+                            child: Text(s.name),
+                          ),
+                        )
+                        .toList(growable: false),
+                    onChanged: subs.isEmpty
+                        ? null
+                        : (v) => setState(() => _subId = v),
+                  ),
+                ),
+                SizedBox(
+                  width: 120,
+                  child: TextField(
+                    controller: widget.controller.amountCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'Amount'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final amount = double.tryParse(
+                      widget.controller.amountCtrl.text.trim(),
+                    );
+                    if (amount == null || amount <= 0) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Enter a valid amount')),
+                      );
+                      return;
+                    }
+                    await widget.onSave(
+                      entry: widget.entry,
+                      date: _date,
+                      categoryId: _catId,
+                      subcategoryId: _subId,
+                      amount: amount,
+                    );
+                  },
+                  icon: const Icon(Icons.save_outlined),
+                  label: const Text('Save'),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: widget.onCancel,
+                  icon: const Icon(Icons.close),
+                  label: const Text('Cancel'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ExpenseEntryPrototype extends StatelessWidget {
+  const _ExpenseEntryPrototype();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Card(
+      child: Padding(
+        padding: EdgeInsets.all(10),
+        child: SizedBox(
+          height: 72,
+          child: Row(
+            children: [
+              Expanded(child: Text('2026-01-01 • Category / Subcategory')),
+              SizedBox(width: 8),
+              Text('₹ 0.00'),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

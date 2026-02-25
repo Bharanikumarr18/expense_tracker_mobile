@@ -361,7 +361,10 @@ class _AssetsPageState extends State<AssetsPage> with TickerProviderStateMixin {
           children: [
             DropdownButtonFormField<String>(
               value: _metalType,
-              decoration: const InputDecoration(labelText: 'Metal Type'),
+              decoration: const InputDecoration(
+                labelText: 'Metal Type',
+                floatingLabelBehavior: FloatingLabelBehavior.always,
+              ),
               items: const [
                 DropdownMenuItem(value: 'Gold', child: Text('Gold')),
                 DropdownMenuItem(value: 'Silver', child: Text('Silver')),
@@ -371,7 +374,10 @@ class _AssetsPageState extends State<AssetsPage> with TickerProviderStateMixin {
             const SizedBox(height: 8),
             TextField(
               controller: _metalWeightCtrl,
-              decoration: const InputDecoration(labelText: 'Weight (grams)'),
+              decoration: const InputDecoration(
+                labelText: 'Weight (grams)',
+                floatingLabelBehavior: FloatingLabelBehavior.always,
+              ),
             ),
             const SizedBox(height: 8),
             Wrap(

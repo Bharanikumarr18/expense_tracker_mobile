@@ -343,13 +343,16 @@ class _DashboardPageState extends State<DashboardPage> {
             builder: (context, constraints) {
               final width = constraints.maxWidth;
               final crossAxisCount = width >= 980 ? 3 : 2;
+              final ratio = width < 420
+                  ? 1.55
+                  : (crossAxisCount == 3 ? 2.6 : 1.85);
               return GridView.count(
                 crossAxisCount: crossAxisCount,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 mainAxisSpacing: 10,
                 crossAxisSpacing: 10,
-                childAspectRatio: crossAxisCount == 3 ? 2.6 : 2.2,
+                childAspectRatio: ratio,
                 children: [
                   SummaryCard(
                     title: 'Total Income',
@@ -373,141 +376,171 @@ class _DashboardPageState extends State<DashboardPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      SizedBox(
-                        width: 130,
-                        child: DropdownButtonFormField<DashboardMode>(
-                          value: _mode,
-                          isExpanded: true,
-                          decoration: const InputDecoration(labelText: 'Mode'),
-                          items: const [
-                            DropdownMenuItem(
-                              value: DashboardMode.monthly,
-                              child: Text('Monthly'),
-                            ),
-                            DropdownMenuItem(
-                              value: DashboardMode.yearly,
-                              child: Text('Yearly'),
-                            ),
-                            DropdownMenuItem(
-                              value: DashboardMode.custom,
-                              child: Text('Custom'),
-                            ),
-                          ],
-                          onChanged: (v) => setState(
-                            () => _mode = v ?? DashboardMode.monthly,
-                          ),
-                        ),
-                      ),
-                      if (_mode == DashboardMode.monthly)
-                        SizedBox(
-                          width: 150,
-                          child: DropdownButtonFormField<DateTime>(
-                            value: _selectedMonth,
-                            isExpanded: true,
-                            decoration: const InputDecoration(
-                              labelText: 'Month',
-                            ),
-                            items: List.generate(24, (i) {
-                              final d = DateTime(
-                                DateTime.now().year,
-                                DateTime.now().month - i,
-                                1,
-                              );
-                              return DropdownMenuItem(
-                                value: d,
-                                child: Text(
-                                  '${d.year}-${d.month.toString().padLeft(2, '0')}',
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final width = constraints.maxWidth;
+                      final isNarrow = width < 420;
+                      final half = ((width - 8) / 2).clamp(120.0, width);
+                      final modeWidth = isNarrow ? half : 130.0;
+                      final monthWidth = isNarrow ? half : 150.0;
+                      final yearWidth = isNarrow ? half : 110.0;
+                      final subWidth = isNarrow ? width : 200.0;
+                      final chartWidth = isNarrow ? half : 140.0;
+                      return Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: modeWidth,
+                            child: DropdownButtonFormField<DashboardMode>(
+                              value: _mode,
+                              isExpanded: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Mode',
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: DashboardMode.monthly,
+                                  child: Text('Monthly'),
                                 ),
-                              );
-                            }),
-                            onChanged: (v) => setState(
-                              () => _selectedMonth = v ?? _selectedMonth,
+                                DropdownMenuItem(
+                                  value: DashboardMode.yearly,
+                                  child: Text('Yearly'),
+                                ),
+                                DropdownMenuItem(
+                                  value: DashboardMode.custom,
+                                  child: Text('Custom'),
+                                ),
+                              ],
+                              onChanged: (v) => setState(
+                                () => _mode = v ?? DashboardMode.monthly,
+                              ),
                             ),
                           ),
-                        ),
-                      if (_mode == DashboardMode.yearly)
-                        SizedBox(
-                          width: 110,
-                          child: DropdownButtonFormField<int>(
-                            value: _selectedYear,
-                            isExpanded: true,
-                            decoration: const InputDecoration(
-                              labelText: 'Year',
+                          if (_mode == DashboardMode.monthly)
+                            SizedBox(
+                              width: monthWidth,
+                              child: DropdownButtonFormField<DateTime>(
+                                value: _selectedMonth,
+                                isExpanded: true,
+                                decoration: const InputDecoration(
+                                  labelText: 'Month',
+                                ),
+                                items: List.generate(24, (i) {
+                                  final d = DateTime(
+                                    DateTime.now().year,
+                                    DateTime.now().month - i,
+                                    1,
+                                  );
+                                  return DropdownMenuItem(
+                                    value: d,
+                                    child: Text(
+                                      '${d.year}-${d.month.toString().padLeft(2, '0')}',
+                                    ),
+                                  );
+                                }),
+                                onChanged: (v) => setState(
+                                  () => _selectedMonth = v ?? _selectedMonth,
+                                ),
+                              ),
                             ),
-                            items: List.generate(10, (i) {
-                              final y = DateTime.now().year - i;
-                              return DropdownMenuItem(
-                                value: y,
-                                child: Text(y.toString()),
-                              );
-                            }),
-                            onChanged: (v) => setState(
-                              () => _selectedYear = v ?? _selectedYear,
+                          if (_mode == DashboardMode.yearly)
+                            SizedBox(
+                              width: yearWidth,
+                              child: DropdownButtonFormField<int>(
+                                value: _selectedYear,
+                                isExpanded: true,
+                                decoration: const InputDecoration(
+                                  labelText: 'Year',
+                                ),
+                                items: List.generate(10, (i) {
+                                  final y = DateTime.now().year - i;
+                                  return DropdownMenuItem(
+                                    value: y,
+                                    child: Text(y.toString()),
+                                  );
+                                }),
+                                onChanged: (v) => setState(
+                                  () => _selectedYear = v ?? _selectedYear,
+                                ),
+                              ),
+                            ),
+                          if (_mode == DashboardMode.custom)
+                            SizedBox(
+                              width: half,
+                              child: OutlinedButton(
+                                onPressed: () => _pickDate(from: true),
+                                child: Text(
+                                  'From: ${formatIsoDate(_customFrom)}',
+                                ),
+                              ),
+                            ),
+                          if (_mode == DashboardMode.custom)
+                            SizedBox(
+                              width: half,
+                              child: OutlinedButton(
+                                onPressed: () => _pickDate(from: false),
+                                child: Text('To: ${formatIsoDate(_customTo)}'),
+                              ),
+                            ),
+                          SizedBox(
+                            width: subWidth,
+                            child: DropdownButtonFormField<String>(
+                              value: _subCategoryFilter,
+                              isExpanded: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Subcategory',
+                              ),
+                              items: _subCategoryFilterOptions
+                                  .map(
+                                    (c) => DropdownMenuItem(
+                                      value: c,
+                                      child: Text(
+                                        c,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  )
+                                  .toList(growable: false),
+                              onChanged: (v) async {
+                                if (v == null) return;
+                                setState(() => _subCategoryFilter = v);
+                                await _refresh();
+                              },
                             ),
                           ),
-                        ),
-                      if (_mode == DashboardMode.custom)
-                        OutlinedButton(
-                          onPressed: () => _pickDate(from: true),
-                          child: Text('From: ${formatIsoDate(_customFrom)}'),
-                        ),
-                      if (_mode == DashboardMode.custom)
-                        OutlinedButton(
-                          onPressed: () => _pickDate(from: false),
-                          child: Text('To: ${formatIsoDate(_customTo)}'),
-                        ),
-                      SizedBox(
-                        width: 200,
-                        child: DropdownButtonFormField<String>(
-                          value: _subCategoryFilter,
-                          isExpanded: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Subcategory',
-                          ),
-                          items: _subCategoryFilterOptions
-                              .map(
-                                (c) =>
-                                    DropdownMenuItem(value: c, child: Text(c)),
-                              )
-                              .toList(growable: false),
-                          onChanged: (v) async {
-                            if (v == null) return;
-                            setState(() => _subCategoryFilter = v);
-                            await _refresh();
-                          },
-                        ),
-                      ),
-                      SizedBox(
-                        width: 140,
-                        child: DropdownButtonFormField<SubChartView>(
-                          value: _subChartView,
-                          isExpanded: true,
-                          decoration: const InputDecoration(labelText: 'Chart'),
-                          items: const [
-                            DropdownMenuItem(
-                              value: SubChartView.pie,
-                              child: Text('Pie'),
+                          SizedBox(
+                            width: chartWidth,
+                            child: DropdownButtonFormField<SubChartView>(
+                              value: _subChartView,
+                              isExpanded: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Chart',
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: SubChartView.pie,
+                                  child: Text('Pie'),
+                                ),
+                                DropdownMenuItem(
+                                  value: SubChartView.bar,
+                                  child: Text('Bar'),
+                                ),
+                              ],
+                              onChanged: (v) => setState(
+                                () => _subChartView = v ?? SubChartView.pie,
+                              ),
                             ),
-                            DropdownMenuItem(
-                              value: SubChartView.bar,
-                              child: Text('Bar'),
-                            ),
-                          ],
-                          onChanged: (v) => setState(
-                            () => _subChartView = v ?? SubChartView.pie,
                           ),
-                        ),
-                      ),
-                      ElevatedButton(
-                        onPressed: _refresh,
-                        child: const Text('Refresh Charts'),
-                      ),
-                    ],
+                          ElevatedButton(
+                            onPressed: _refresh,
+                            child: const Text('Refresh Charts'),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                   const SizedBox(height: 8),
                   Text(

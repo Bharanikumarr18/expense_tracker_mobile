@@ -254,6 +254,34 @@ class _IncomePageState extends State<IncomePage> {
     if (d != null) onChanged(d);
   }
 
+  Widget _adaptiveFieldActionRow({
+    required Widget field,
+    required Widget action,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 420;
+        if (isNarrow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              field,
+              const SizedBox(height: 8),
+              SizedBox(width: double.infinity, child: action),
+            ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: field),
+            const SizedBox(width: 8),
+            action,
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _addIncome() async {
     final amount = double.tryParse(_amountCtrl.text.trim());
     if (_selectedCategory == null ||
@@ -759,40 +787,32 @@ class _IncomePageState extends State<IncomePage> {
           title: const Text('Advanced (Income Category Management)'),
           childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _newCatCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'New Category',
-                    ),
-                  ),
+            _adaptiveFieldActionRow(
+              field: TextField(
+                controller: _newCatCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'New Category',
+                  floatingLabelBehavior: FloatingLabelBehavior.always,
                 ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: _addCategory,
-                  child: const Text('Add'),
-                ),
-              ],
+              ),
+              action: ElevatedButton(
+                onPressed: _addCategory,
+                child: const Text('Add'),
+              ),
             ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _newSubCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'New Subcategory',
-                    ),
-                  ),
+            _adaptiveFieldActionRow(
+              field: TextField(
+                controller: _newSubCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'New Subcategory',
+                  floatingLabelBehavior: FloatingLabelBehavior.always,
                 ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: _addSubcategory,
-                  child: const Text('Add'),
-                ),
-              ],
+              ),
+              action: ElevatedButton(
+                onPressed: _addSubcategory,
+                child: const Text('Add'),
+              ),
             ),
             const SizedBox(height: 12),
             const Divider(),
@@ -813,22 +833,18 @@ class _IncomePageState extends State<IncomePage> {
               onChanged: (v) => setState(() => _advRenameCatId = v),
             ),
             const SizedBox(height: 6),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _renameCatCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'New category name',
-                    ),
-                  ),
+            _adaptiveFieldActionRow(
+              field: TextField(
+                controller: _renameCatCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'New category name',
+                  floatingLabelBehavior: FloatingLabelBehavior.always,
                 ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: _renameCategory,
-                  child: const Text('Rename'),
-                ),
-              ],
+              ),
+              action: ElevatedButton(
+                onPressed: _renameCategory,
+                child: const Text('Rename'),
+              ),
             ),
             const SizedBox(height: 12),
             Text(
@@ -882,22 +898,18 @@ class _IncomePageState extends State<IncomePage> {
               onChanged: (v) => setState(() => _advRenameSubId = v),
             ),
             const SizedBox(height: 6),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _renameSubCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'New subcategory name',
-                    ),
-                  ),
+            _adaptiveFieldActionRow(
+              field: TextField(
+                controller: _renameSubCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'New subcategory name',
+                  floatingLabelBehavior: FloatingLabelBehavior.always,
                 ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: _renameSubcategory,
-                  child: const Text('Rename'),
-                ),
-              ],
+              ),
+              action: ElevatedButton(
+                onPressed: _renameSubcategory,
+                child: const Text('Rename'),
+              ),
             ),
             const SizedBox(height: 12),
             Text(
@@ -1608,12 +1620,43 @@ class _IncomeEntryPrototype extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.all(10),
         child: SizedBox(
-          height: 72,
+          height: 98,
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: Text('2026-01-01 • Category / Subcategory')),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '2026-01-01 • Category / Subcategory',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      'Notes • Optional tag',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
               SizedBox(width: 8),
-              Text('₹ 0.00'),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text('₹ 0.00'),
+                  SizedBox(height: 6),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.edit_outlined, size: 18),
+                      SizedBox(width: 6),
+                      Icon(Icons.delete_outline, size: 18),
+                    ],
+                  ),
+                ],
+              ),
             ],
           ),
         ),

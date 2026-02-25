@@ -167,22 +167,32 @@ class _HomeShellState extends State<HomeShell> {
           return Scaffold(
             appBar: AppBar(title: Text(item.title)),
             drawer: Drawer(
-              child: ListView(
-                children: [
-                  const DrawerHeader(child: Text('Finance Tracker Mobile')),
-                  ...List.generate(_items.length, (i) {
-                    final n = _items[i];
-                    return ListTile(
-                      leading: Icon(n.icon),
-                      title: Text(n.title),
-                      selected: i == _index,
-                      onTap: () {
-                        setState(() => _index = i);
-                        Navigator.of(context).pop();
-                      },
-                    );
-                  }),
-                ],
+              child: SafeArea(
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 8, 16, 8),
+                      child: Text(
+                        'Finance Tracker Mobile',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    ...List.generate(_items.length, (i) {
+                      final n = _items[i];
+                      return ListTile(
+                        leading: Icon(n.icon),
+                        title: Text(n.title),
+                        selected: i == _index,
+                        onTap: () {
+                          setState(() => _index = i);
+                          Navigator.of(context).pop();
+                        },
+                      );
+                    }),
+                  ],
+                ),
               ),
             ),
             body: SafeArea(child: animatedPage(item.page)),

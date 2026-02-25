@@ -32,21 +32,37 @@ class SummaryCard extends StatelessWidget {
                   Icon(icon, size: 14),
                   const SizedBox(width: 6),
                 ],
-                Text(title, style: Theme.of(context).textTheme.bodySmall),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.bodySmall,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             TweenAnimationBuilder<double>(
               key: ValueKey('${title}_$value'),
               tween: Tween<double>(begin: 0, end: value),
               duration: const Duration(milliseconds: 550),
               curve: Curves.easeOutCubic,
-              builder: (context, animatedValue, _) => Text(
-                formatCurrency(animatedValue),
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-              ),
+              builder: (context, animatedValue, _) {
+                final text = Text(
+                  formatCurrency(animatedValue),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                );
+                return FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: text,
+                );
+              },
             ),
           ],
         ),

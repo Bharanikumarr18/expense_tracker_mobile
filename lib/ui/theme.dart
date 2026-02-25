@@ -75,6 +75,10 @@ class TrackerTheme {
         isDense: true,
         filled: true,
         fillColor: const Color(0xFF0F1524),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 14,
+        ),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(

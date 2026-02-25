@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
@@ -913,8 +913,8 @@ class _ExportPageState extends State<ExportPage> {
                     DropdownButton<String>(
                       value: _expenseCategoryFilter,
                       items: expenseCategoryOptions
-                          .map(
-                            (v) => DropdownMenuItem(
+                          .map<DropdownMenuItem<String>>(
+                            (v) => DropdownMenuItem<String>(
                               value: v,
                               child: Text('Category: $v'),
                             ),
@@ -926,8 +926,8 @@ class _ExportPageState extends State<ExportPage> {
                     DropdownButton<String>(
                       value: _expenseSubFilter,
                       items: expenseSubOptions
-                          .map(
-                            (v) => DropdownMenuItem(
+                          .map<DropdownMenuItem<String>>(
+                            (v) => DropdownMenuItem<String>(
                               value: v,
                               child: Text('Subcategory: $v'),
                             ),
@@ -1066,8 +1066,8 @@ class _ExportPageState extends State<ExportPage> {
                     DropdownButton<String>(
                       value: _incomeCategoryFilter,
                       items: incomeCategoryOptions
-                          .map(
-                            (v) => DropdownMenuItem(
+                          .map<DropdownMenuItem<String>>(
+                            (v) => DropdownMenuItem<String>(
                               value: v,
                               child: Text('Category: $v'),
                             ),
@@ -1079,8 +1079,8 @@ class _ExportPageState extends State<ExportPage> {
                     DropdownButton<String>(
                       value: _incomeSubFilter,
                       items: incomeSubOptions
-                          .map(
-                            (v) => DropdownMenuItem(
+                          .map<DropdownMenuItem<String>>(
+                            (v) => DropdownMenuItem<String>(
                               value: v,
                               child: Text('Subcategory: $v'),
                             ),

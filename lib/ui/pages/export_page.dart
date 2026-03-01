@@ -770,56 +770,109 @@ class _ExportPageState extends State<ExportPage> {
     required DateTime to,
     required ValueChanged<DateTime> onTo,
   }) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        DropdownButton<ExportMode>(
-          value: mode,
-          items: const [
-            DropdownMenuItem(value: ExportMode.monthly, child: Text('Monthly')),
-            DropdownMenuItem(value: ExportMode.yearly, child: Text('Yearly')),
-            DropdownMenuItem(value: ExportMode.custom, child: Text('Custom')),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final narrow = width < 420;
+        final modeWidth = narrow ? width : 150.0;
+        final monthWidth = narrow ? width : 150.0;
+        final yearWidth = narrow ? width : 120.0;
+        final dateWidth = narrow ? width : 180.0;
+
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            SizedBox(
+              width: modeWidth,
+              child: DropdownButtonFormField<ExportMode>(
+                value: mode,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Mode'),
+                items: const [
+                  DropdownMenuItem(
+                    value: ExportMode.monthly,
+                    child: Text('Monthly'),
+                  ),
+                  DropdownMenuItem(
+                    value: ExportMode.yearly,
+                    child: Text('Yearly'),
+                  ),
+                  DropdownMenuItem(
+                    value: ExportMode.custom,
+                    child: Text('Custom'),
+                  ),
+                ],
+                onChanged: (v) => onMode(v ?? ExportMode.monthly),
+              ),
+            ),
+            if (mode == ExportMode.monthly)
+              SizedBox(
+                width: monthWidth,
+                child: DropdownButtonFormField<DateTime>(
+                  value: month,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Month'),
+                  items: List.generate(24, (i) {
+                    final d = DateTime(
+                      DateTime.now().year,
+                      DateTime.now().month - i,
+                      1,
+                    );
+                    return DropdownMenuItem(
+                      value: d,
+                      child: Text(
+                        '${d.year}-${d.month.toString().padLeft(2, '0')}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  }),
+                  onChanged: (v) => onMonth(v ?? month),
+                ),
+              ),
+            if (mode == ExportMode.yearly)
+              SizedBox(
+                width: yearWidth,
+                child: DropdownButtonFormField<int>(
+                  value: year,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Year'),
+                  items: List.generate(10, (i) {
+                    final y = DateTime.now().year - i;
+                    return DropdownMenuItem(value: y, child: Text('$y'));
+                  }),
+                  onChanged: (v) => onYear(v ?? year),
+                ),
+              ),
+            if (mode == ExportMode.custom)
+              SizedBox(
+                width: dateWidth,
+                child: OutlinedButton(
+                  onPressed: () => _pickDate(initial: from, onChanged: onFrom),
+                  child: Text(
+                    'From ${formatIsoDate(from)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+            if (mode == ExportMode.custom)
+              SizedBox(
+                width: dateWidth,
+                child: OutlinedButton(
+                  onPressed: () => _pickDate(initial: to, onChanged: onTo),
+                  child: Text(
+                    'To ${formatIsoDate(to)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
           ],
-          onChanged: (v) => onMode(v ?? ExportMode.monthly),
-        ),
-        if (mode == ExportMode.monthly)
-          DropdownButton<DateTime>(
-            value: month,
-            items: List.generate(24, (i) {
-              final d = DateTime(
-                DateTime.now().year,
-                DateTime.now().month - i,
-                1,
-              );
-              return DropdownMenuItem(
-                value: d,
-                child: Text('${d.year}-${d.month.toString().padLeft(2, '0')}'),
-              );
-            }),
-            onChanged: (v) => onMonth(v ?? month),
-          ),
-        if (mode == ExportMode.yearly)
-          DropdownButton<int>(
-            value: year,
-            items: List.generate(10, (i) {
-              final y = DateTime.now().year - i;
-              return DropdownMenuItem(value: y, child: Text('$y'));
-            }),
-            onChanged: (v) => onYear(v ?? year),
-          ),
-        if (mode == ExportMode.custom)
-          OutlinedButton(
-            onPressed: () => _pickDate(initial: from, onChanged: onFrom),
-            child: Text('From ${formatIsoDate(from)}'),
-          ),
-        if (mode == ExportMode.custom)
-          OutlinedButton(
-            onPressed: () => _pickDate(initial: to, onChanged: onTo),
-            child: Text('To ${formatIsoDate(to)}'),
-          ),
-      ],
+        );
+      },
     );
   }
 
@@ -907,46 +960,87 @@ class _ExportPageState extends State<ExportPage> {
                   onTo: (v) => setState(() => _expenseTo = v),
                 ),
                 const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    DropdownButton<String>(
-                      value: _expenseCategoryFilter,
-                      items: expenseCategoryOptions
-                          .map<DropdownMenuItem<String>>(
-                            (v) => DropdownMenuItem<String>(
-                              value: v,
-                              child: Text('Category: $v'),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final width = constraints.maxWidth;
+                    final narrow = width < 420;
+                    final filterWidth = narrow ? width : 240.0;
+
+                    Widget fullIfNarrow(Widget child) {
+                      if (!narrow) return child;
+                      return SizedBox(width: width, child: child);
+                    }
+
+                    return Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        SizedBox(
+                          width: filterWidth,
+                          child: DropdownButtonFormField<String>(
+                            value: _expenseCategoryFilter,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Category',
                             ),
-                          )
-                          .toList(growable: false),
-                      onChanged: (v) =>
-                          setState(() => _expenseCategoryFilter = v ?? 'All'),
-                    ),
-                    DropdownButton<String>(
-                      value: _expenseSubFilter,
-                      items: expenseSubOptions
-                          .map<DropdownMenuItem<String>>(
-                            (v) => DropdownMenuItem<String>(
-                              value: v,
-                              child: Text('Subcategory: $v'),
+                            items: expenseCategoryOptions
+                                .map<DropdownMenuItem<String>>(
+                                  (v) => DropdownMenuItem<String>(
+                                    value: v,
+                                    child: Text(
+                                      v,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                )
+                                .toList(growable: false),
+                            onChanged: (v) => setState(
+                              () => _expenseCategoryFilter = v ?? 'All',
                             ),
-                          )
-                          .toList(growable: false),
-                      onChanged: (v) =>
-                          setState(() => _expenseSubFilter = v ?? 'All'),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: _busy ? null : _exportExpense,
-                      icon: const Icon(Icons.picture_as_pdf),
-                      label: const Text('Export Expense PDF'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: _busy ? null : _exportExpenseToMega,
-                      icon: const Icon(Icons.cloud_upload_outlined),
-                      label: const Text('Upload to MEGA'),
-                    ),
-                  ],
+                          ),
+                        ),
+                        SizedBox(
+                          width: filterWidth,
+                          child: DropdownButtonFormField<String>(
+                            value: _expenseSubFilter,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Subcategory',
+                            ),
+                            items: expenseSubOptions
+                                .map<DropdownMenuItem<String>>(
+                                  (v) => DropdownMenuItem<String>(
+                                    value: v,
+                                    child: Text(
+                                      v,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                )
+                                .toList(growable: false),
+                            onChanged: (v) =>
+                                setState(() => _expenseSubFilter = v ?? 'All'),
+                          ),
+                        ),
+                        fullIfNarrow(
+                          ElevatedButton.icon(
+                            onPressed: _busy ? null : _exportExpense,
+                            icon: const Icon(Icons.picture_as_pdf),
+                            label: const Text('Export Expense PDF'),
+                          ),
+                        ),
+                        fullIfNarrow(
+                          OutlinedButton.icon(
+                            onPressed: _busy ? null : _exportExpenseToMega,
+                            icon: const Icon(Icons.cloud_upload_outlined),
+                            label: const Text('Upload to MEGA'),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ],
             ),
@@ -1060,46 +1154,87 @@ class _ExportPageState extends State<ExportPage> {
                   onTo: (v) => setState(() => _incomeTo = v),
                 ),
                 const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    DropdownButton<String>(
-                      value: _incomeCategoryFilter,
-                      items: incomeCategoryOptions
-                          .map<DropdownMenuItem<String>>(
-                            (v) => DropdownMenuItem<String>(
-                              value: v,
-                              child: Text('Category: $v'),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final width = constraints.maxWidth;
+                    final narrow = width < 420;
+                    final filterWidth = narrow ? width : 240.0;
+
+                    Widget fullIfNarrow(Widget child) {
+                      if (!narrow) return child;
+                      return SizedBox(width: width, child: child);
+                    }
+
+                    return Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        SizedBox(
+                          width: filterWidth,
+                          child: DropdownButtonFormField<String>(
+                            value: _incomeCategoryFilter,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Category',
                             ),
-                          )
-                          .toList(growable: false),
-                      onChanged: (v) =>
-                          setState(() => _incomeCategoryFilter = v ?? 'All'),
-                    ),
-                    DropdownButton<String>(
-                      value: _incomeSubFilter,
-                      items: incomeSubOptions
-                          .map<DropdownMenuItem<String>>(
-                            (v) => DropdownMenuItem<String>(
-                              value: v,
-                              child: Text('Subcategory: $v'),
+                            items: incomeCategoryOptions
+                                .map<DropdownMenuItem<String>>(
+                                  (v) => DropdownMenuItem<String>(
+                                    value: v,
+                                    child: Text(
+                                      v,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                )
+                                .toList(growable: false),
+                            onChanged: (v) => setState(
+                              () => _incomeCategoryFilter = v ?? 'All',
                             ),
-                          )
-                          .toList(growable: false),
-                      onChanged: (v) =>
-                          setState(() => _incomeSubFilter = v ?? 'All'),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: _busy ? null : _exportIncome,
-                      icon: const Icon(Icons.picture_as_pdf),
-                      label: const Text('Export Income PDF'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: _busy ? null : _exportIncomeToMega,
-                      icon: const Icon(Icons.cloud_upload_outlined),
-                      label: const Text('Upload to MEGA'),
-                    ),
-                  ],
+                          ),
+                        ),
+                        SizedBox(
+                          width: filterWidth,
+                          child: DropdownButtonFormField<String>(
+                            value: _incomeSubFilter,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Subcategory',
+                            ),
+                            items: incomeSubOptions
+                                .map<DropdownMenuItem<String>>(
+                                  (v) => DropdownMenuItem<String>(
+                                    value: v,
+                                    child: Text(
+                                      v,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                )
+                                .toList(growable: false),
+                            onChanged: (v) =>
+                                setState(() => _incomeSubFilter = v ?? 'All'),
+                          ),
+                        ),
+                        fullIfNarrow(
+                          ElevatedButton.icon(
+                            onPressed: _busy ? null : _exportIncome,
+                            icon: const Icon(Icons.picture_as_pdf),
+                            label: const Text('Export Income PDF'),
+                          ),
+                        ),
+                        fullIfNarrow(
+                          OutlinedButton.icon(
+                            onPressed: _busy ? null : _exportIncomeToMega,
+                            icon: const Icon(Icons.cloud_upload_outlined),
+                            label: const Text('Upload to MEGA'),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ],
             ),
@@ -1120,39 +1255,66 @@ class _ExportPageState extends State<ExportPage> {
                 if (_events.isEmpty)
                   const Text('No events available')
                 else
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      DropdownButton<EventSummary>(
-                        value: _selectedEvent,
-                        items: _events
-                            .map(
-                              (e) => DropdownMenuItem(
-                                value: e,
-                                child: Text(
-                                  '${e.name} | ${formatIsoDate(e.start)}${e.start == e.end ? '' : ' → ${formatIsoDate(e.end)}'}',
-                                ),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final width = constraints.maxWidth;
+                      final narrow = width < 420;
+                      final eventWidth = narrow ? width : 380.0;
+
+                      Widget fullIfNarrow(Widget child) {
+                        if (!narrow) return child;
+                        return SizedBox(width: width, child: child);
+                      }
+
+                      return Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          SizedBox(
+                            width: eventWidth,
+                            child: DropdownButtonFormField<EventSummary>(
+                              value: _selectedEvent,
+                              isExpanded: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Event',
                               ),
-                            )
-                            .toList(growable: false),
-                        onChanged: (v) => setState(() => _selectedEvent = v),
-                      ),
-                      ElevatedButton.icon(
-                        onPressed: _busy || _selectedEvent == null
-                            ? null
-                            : _exportEvent,
-                        icon: const Icon(Icons.receipt_long),
-                        label: const Text('Export Event PDF'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: _busy || _selectedEvent == null
-                            ? null
-                            : _exportEventToMega,
-                        icon: const Icon(Icons.cloud_upload_outlined),
-                        label: const Text('Upload to MEGA'),
-                      ),
-                    ],
+                              items: _events
+                                  .map(
+                                    (e) => DropdownMenuItem(
+                                      value: e,
+                                      child: Text(
+                                        '${e.name} | ${formatIsoDate(e.start)}${e.start == e.end ? '' : ' → ${formatIsoDate(e.end)}'}',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  )
+                                  .toList(growable: false),
+                              onChanged: (v) =>
+                                  setState(() => _selectedEvent = v),
+                            ),
+                          ),
+                          fullIfNarrow(
+                            ElevatedButton.icon(
+                              onPressed: _busy || _selectedEvent == null
+                                  ? null
+                                  : _exportEvent,
+                              icon: const Icon(Icons.receipt_long),
+                              label: const Text('Export Event PDF'),
+                            ),
+                          ),
+                          fullIfNarrow(
+                            OutlinedButton.icon(
+                              onPressed: _busy || _selectedEvent == null
+                                  ? null
+                                  : _exportEventToMega,
+                              icon: const Icon(Icons.cloud_upload_outlined),
+                              label: const Text('Upload to MEGA'),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
               ],
             ),

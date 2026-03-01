@@ -605,17 +605,36 @@ class _DashboardPageState extends State<DashboardPage> {
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 6),
-                    DropdownButton<String>(
-                      value: _barSubcategory,
-                      items: _subRows
-                          .map(
-                            (e) => DropdownMenuItem(
-                              value: e.label,
-                              child: Text(e.label),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final width = constraints.maxWidth < 420
+                            ? constraints.maxWidth
+                            : 320.0;
+                        return SizedBox(
+                          width: width,
+                          child: DropdownButtonFormField<String>(
+                            value: _barSubcategory,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Subcategory',
                             ),
-                          )
-                          .toList(growable: false),
-                      onChanged: (v) => setState(() => _barSubcategory = v),
+                            items: _subRows
+                                .map(
+                                  (e) => DropdownMenuItem(
+                                    value: e.label,
+                                    child: Text(
+                                      e.label,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                )
+                                .toList(growable: false),
+                            onChanged: (v) =>
+                                setState(() => _barSubcategory = v),
+                          ),
+                        );
+                      },
                     ),
                     const SizedBox(height: 6),
                     ..._periodEntries
@@ -715,104 +734,180 @@ class _DashboardPageState extends State<DashboardPage> {
             title: const Text('View Subcategory Details Table'),
             childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
             children: [
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  DropdownButton<String>(
-                    value: _detailCategory,
-                    items: detailCategories
-                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                        .toList(growable: false),
-                    onChanged: (v) => setState(() {
-                      _detailCategory = v;
-                      final subs =
-                          _allEntries
-                              .where((e) => e.category == v)
-                              .map((e) => e.subcategory)
-                              .toSet()
-                              .toList()
-                            ..sort();
-                      _detailSubcategory = subs.isNotEmpty ? subs.first : null;
-                    }),
-                  ),
-                  DropdownButton<String>(
-                    value: _detailSubcategory,
-                    items: detailSubcategories
-                        .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-                        .toList(growable: false),
-                    onChanged: (v) => setState(() => _detailSubcategory = v),
-                  ),
-                  DropdownButton<DetailFilterMode>(
-                    value: _detailMode,
-                    items: const [
-                      DropdownMenuItem(
-                        value: DetailFilterMode.monthly,
-                        child: Text('Monthly'),
-                      ),
-                      DropdownMenuItem(
-                        value: DetailFilterMode.last7,
-                        child: Text('Last 7 Days'),
-                      ),
-                      DropdownMenuItem(
-                        value: DetailFilterMode.custom,
-                        child: Text('Custom'),
-                      ),
-                    ],
-                    onChanged: (v) => setState(
-                      () => _detailMode = v ?? DetailFilterMode.monthly,
-                    ),
-                  ),
-                  if (_detailMode == DetailFilterMode.monthly)
-                    DropdownButton<DateTime>(
-                      value: _detailMonth,
-                      items: List.generate(24, (i) {
-                        final d = DateTime(
-                          DateTime.now().year,
-                          DateTime.now().month - i,
-                          1,
-                        );
-                        return DropdownMenuItem(
-                          value: d,
-                          child: Text(
-                            '${d.year}-${d.month.toString().padLeft(2, '0')}',
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final width = constraints.maxWidth;
+                  final narrow = width < 420;
+                  final categoryWidth = narrow ? width : 230.0;
+                  final subcategoryWidth = narrow ? width : 230.0;
+                  final modeWidth = narrow ? width : 170.0;
+                  final monthWidth = narrow ? width : 150.0;
+                  final dateWidth = narrow ? width : 180.0;
+
+                  return Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      SizedBox(
+                        width: categoryWidth,
+                        child: DropdownButtonFormField<String>(
+                          value: _detailCategory,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Category',
                           ),
-                        );
-                      }),
-                      onChanged: (v) =>
-                          setState(() => _detailMonth = v ?? _detailMonth),
-                    ),
-                  if (_detailMode == DetailFilterMode.custom)
-                    OutlinedButton(
-                      onPressed: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime(2100),
-                          initialDate: _detailFrom,
-                        );
-                        if (picked != null) {
-                          setState(() => _detailFrom = picked);
-                        }
-                      },
-                      child: Text('From ${formatIsoDate(_detailFrom)}'),
-                    ),
-                  if (_detailMode == DetailFilterMode.custom)
-                    OutlinedButton(
-                      onPressed: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime(2100),
-                          initialDate: _detailTo,
-                        );
-                        if (picked != null) {
-                          setState(() => _detailTo = picked);
-                        }
-                      },
-                      child: Text('To ${formatIsoDate(_detailTo)}'),
-                    ),
-                ],
+                          items: detailCategories
+                              .map(
+                                (c) => DropdownMenuItem(
+                                  value: c,
+                                  child: Text(
+                                    c,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              )
+                              .toList(growable: false),
+                          onChanged: (v) => setState(() {
+                            _detailCategory = v;
+                            final subs =
+                                _allEntries
+                                    .where((e) => e.category == v)
+                                    .map((e) => e.subcategory)
+                                    .toSet()
+                                    .toList()
+                                  ..sort();
+                            _detailSubcategory = subs.isNotEmpty
+                                ? subs.first
+                                : null;
+                          }),
+                        ),
+                      ),
+                      SizedBox(
+                        width: subcategoryWidth,
+                        child: DropdownButtonFormField<String>(
+                          value: _detailSubcategory,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Subcategory',
+                          ),
+                          items: detailSubcategories
+                              .map(
+                                (s) => DropdownMenuItem(
+                                  value: s,
+                                  child: Text(
+                                    s,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              )
+                              .toList(growable: false),
+                          onChanged: (v) =>
+                              setState(() => _detailSubcategory = v),
+                        ),
+                      ),
+                      SizedBox(
+                        width: modeWidth,
+                        child: DropdownButtonFormField<DetailFilterMode>(
+                          value: _detailMode,
+                          isExpanded: true,
+                          decoration: const InputDecoration(labelText: 'Mode'),
+                          items: const [
+                            DropdownMenuItem(
+                              value: DetailFilterMode.monthly,
+                              child: Text('Monthly'),
+                            ),
+                            DropdownMenuItem(
+                              value: DetailFilterMode.last7,
+                              child: Text('Last 7 Days'),
+                            ),
+                            DropdownMenuItem(
+                              value: DetailFilterMode.custom,
+                              child: Text('Custom'),
+                            ),
+                          ],
+                          onChanged: (v) => setState(
+                            () => _detailMode = v ?? DetailFilterMode.monthly,
+                          ),
+                        ),
+                      ),
+                      if (_detailMode == DetailFilterMode.monthly)
+                        SizedBox(
+                          width: monthWidth,
+                          child: DropdownButtonFormField<DateTime>(
+                            value: _detailMonth,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Month',
+                            ),
+                            items: List.generate(24, (i) {
+                              final d = DateTime(
+                                DateTime.now().year,
+                                DateTime.now().month - i,
+                                1,
+                              );
+                              return DropdownMenuItem(
+                                value: d,
+                                child: Text(
+                                  '${d.year}-${d.month.toString().padLeft(2, '0')}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              );
+                            }),
+                            onChanged: (v) => setState(
+                              () => _detailMonth = v ?? _detailMonth,
+                            ),
+                          ),
+                        ),
+                      if (_detailMode == DetailFilterMode.custom)
+                        SizedBox(
+                          width: dateWidth,
+                          child: OutlinedButton(
+                            onPressed: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                firstDate: DateTime(2000),
+                                lastDate: DateTime(2100),
+                                initialDate: _detailFrom,
+                              );
+                              if (picked != null) {
+                                setState(() => _detailFrom = picked);
+                              }
+                            },
+                            child: Text(
+                              'From ${formatIsoDate(_detailFrom)}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+                      if (_detailMode == DetailFilterMode.custom)
+                        SizedBox(
+                          width: dateWidth,
+                          child: OutlinedButton(
+                            onPressed: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                firstDate: DateTime(2000),
+                                lastDate: DateTime(2100),
+                                initialDate: _detailTo,
+                              );
+                              if (picked != null) {
+                                setState(() => _detailTo = picked);
+                              }
+                            },
+                            child: Text(
+                              'To ${formatIsoDate(_detailTo)}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 8),
               Builder(

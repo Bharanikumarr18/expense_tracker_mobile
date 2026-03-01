@@ -1259,7 +1259,6 @@ class _IncomePageState extends State<IncomePage> {
                         height: h,
                         child: ListView.builder(
                           itemCount: _entries.length,
-                          prototypeItem: const _IncomeEntryPrototype(),
                           itemBuilder: (context, index) {
                             final e = _entries[index];
                             return IncomeEntryRow(
@@ -1572,7 +1571,9 @@ class _IncomeEditRowState extends State<_IncomeEditRow> {
               ],
             ),
             const SizedBox(height: 8),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 ElevatedButton.icon(
                   onPressed: () async {
@@ -1596,7 +1597,6 @@ class _IncomeEditRowState extends State<_IncomeEditRow> {
                   icon: const Icon(Icons.save_outlined),
                   label: const Text('Save'),
                 ),
-                const SizedBox(width: 8),
                 OutlinedButton.icon(
                   onPressed: widget.onCancel,
                   icon: const Icon(Icons.close),
@@ -1605,60 +1605,6 @@ class _IncomeEditRowState extends State<_IncomeEditRow> {
               ],
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _IncomeEntryPrototype extends StatelessWidget {
-  const _IncomeEntryPrototype();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Card(
-      child: Padding(
-        padding: EdgeInsets.all(10),
-        child: SizedBox(
-          height: 98,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '2026-01-01 • Category / Subcategory',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      'Notes • Optional tag',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text('₹ 0.00'),
-                  SizedBox(height: 6),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.edit_outlined, size: 18),
-                      SizedBox(width: 6),
-                      Icon(Icons.delete_outline, size: 18),
-                    ],
-                  ),
-                ],
-              ),
-            ],
-          ),
         ),
       ),
     );

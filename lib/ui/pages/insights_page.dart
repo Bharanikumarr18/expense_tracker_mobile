@@ -291,24 +291,29 @@ class _InsightsPageState extends State<InsightsPage> {
                     runSpacing: 8,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      DropdownButton<AvgMode>(
-                        value: _avgMode,
-                        items: const [
-                          DropdownMenuItem(
-                            value: AvgMode.weekly,
-                            child: Text('Weekly'),
-                          ),
-                          DropdownMenuItem(
-                            value: AvgMode.monthly,
-                            child: Text('Monthly'),
-                          ),
-                          DropdownMenuItem(
-                            value: AvgMode.yearly,
-                            child: Text('Yearly'),
-                          ),
-                        ],
-                        onChanged: (v) =>
-                            setState(() => _avgMode = v ?? AvgMode.monthly),
+                      SizedBox(
+                        width: 170,
+                        child: DropdownButtonFormField<AvgMode>(
+                          value: _avgMode,
+                          isExpanded: true,
+                          decoration: const InputDecoration(labelText: 'Mode'),
+                          items: const [
+                            DropdownMenuItem(
+                              value: AvgMode.weekly,
+                              child: Text('Weekly'),
+                            ),
+                            DropdownMenuItem(
+                              value: AvgMode.monthly,
+                              child: Text('Monthly'),
+                            ),
+                            DropdownMenuItem(
+                              value: AvgMode.yearly,
+                              child: Text('Yearly'),
+                            ),
+                          ],
+                          onChanged: (v) =>
+                              setState(() => _avgMode = v ?? AvgMode.monthly),
+                        ),
                       ),
                       Text('Average: ${formatCurrency(avg)}'),
                     ],
@@ -335,19 +340,26 @@ class _InsightsPageState extends State<InsightsPage> {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 6),
-                  DropdownButton<DateTime>(
-                    value: selectedMonth,
-                    items: months
-                        .map(
-                          (m) => DropdownMenuItem(
-                            value: m,
-                            child: Text(
-                              '${m.year}-${m.month.toString().padLeft(2, '0')}',
+                  SizedBox(
+                    width: 170,
+                    child: DropdownButtonFormField<DateTime>(
+                      value: selectedMonth,
+                      isExpanded: true,
+                      decoration: const InputDecoration(labelText: 'Month'),
+                      items: months
+                          .map(
+                            (m) => DropdownMenuItem(
+                              value: m,
+                              child: Text(
+                                '${m.year}-${m.month.toString().padLeft(2, '0')}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                          ),
-                        )
-                        .toList(growable: false),
-                    onChanged: (v) => setState(() => _selectedMonth = v),
+                          )
+                          .toList(growable: false),
+                      onChanged: (v) => setState(() => _selectedMonth = v),
+                    ),
                   ),
                   const SizedBox(height: 8),
                   LayoutBuilder(
@@ -392,20 +404,66 @@ class _InsightsPageState extends State<InsightsPage> {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 6),
-                  DropdownButton<String>(
-                    value: selectedCategory,
-                    items: categories
-                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                        .toList(growable: false),
-                    onChanged: (v) => setState(() => _trendCategory = v),
-                  ),
-                  const SizedBox(height: 6),
-                  DropdownButton<String>(
-                    value: selectedSub,
-                    items: subcats
-                        .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-                        .toList(growable: false),
-                    onChanged: (v) => setState(() => _trendSubcategory = v),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final width = constraints.maxWidth;
+                      final narrow = width < 420;
+                      final dropdownWidth = narrow ? width : 280.0;
+                      return Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          SizedBox(
+                            width: dropdownWidth,
+                            child: DropdownButtonFormField<String>(
+                              value: selectedCategory,
+                              isExpanded: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Category',
+                              ),
+                              items: categories
+                                  .map(
+                                    (c) => DropdownMenuItem(
+                                      value: c,
+                                      child: Text(
+                                        c,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  )
+                                  .toList(growable: false),
+                              onChanged: (v) =>
+                                  setState(() => _trendCategory = v),
+                            ),
+                          ),
+                          SizedBox(
+                            width: dropdownWidth,
+                            child: DropdownButtonFormField<String>(
+                              value: selectedSub,
+                              isExpanded: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Subcategory',
+                              ),
+                              items: subcats
+                                  .map(
+                                    (s) => DropdownMenuItem(
+                                      value: s,
+                                      child: Text(
+                                        s,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  )
+                                  .toList(growable: false),
+                              onChanged: (v) =>
+                                  setState(() => _trendSubcategory = v),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                   const SizedBox(height: 8),
                   if (trendDiff == null)

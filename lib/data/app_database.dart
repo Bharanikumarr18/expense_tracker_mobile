@@ -184,7 +184,19 @@ class AppDatabase {
       'CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);',
     );
     await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_expenses_category_date ON expenses(category_id, date);',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_expenses_subcategory_date ON expenses(subcategory_id, date);',
+    );
+    await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_income_date ON income(date);',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_income_category_date ON income(category_id, date);',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_income_subcategory_date ON income(subcategory_id, date);',
     );
   }
 

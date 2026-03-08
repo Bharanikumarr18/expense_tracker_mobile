@@ -59,6 +59,7 @@ class _DashboardPageState extends State<DashboardPage> {
   List<ExpenseEntry> _periodEntries = const [];
   List<ExpenseEntry> _allEntries = const [];
   List<_MonthlySnapshot> _snapshots = const [];
+  List<DateTime> _availableMonths = const [];
 
   DashboardMode _mode = DashboardMode.monthly;
   SubChartView _subChartView = SubChartView.pie;
@@ -86,6 +87,15 @@ class _DashboardPageState extends State<DashboardPage> {
   DateTime _detailFrom = DateTime(DateTime.now().year, DateTime.now().month, 1);
   DateTime _detailTo = DateTime.now();
   bool _cumulativeMonthly = false;
+
+  DateTime _monthOnly(DateTime d) => DateTime(d.year, d.month, 1);
+
+  bool _containsMonth(List<DateTime> months, DateTime target) {
+    return months.any((m) => m.year == target.year && m.month == target.month);
+  }
+
+  String _monthLabel(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}';
 
   @override
   void initState() {
@@ -177,8 +187,31 @@ class _DashboardPageState extends State<DashboardPage> {
     });
     try {
       final now = DateTime.now();
+      final months = await widget.repo.getExpenseMonths();
+      final monthOptions = months.isEmpty
+          ? <DateTime>[_monthOnly(now)]
+          : months.map(_monthOnly).toList(growable: false);
+      var selectedMonth = _selectedMonth;
+      if (!_containsMonth(monthOptions, selectedMonth)) {
+        selectedMonth = monthOptions.first;
+      }
+      var detailMonth = _detailMonth;
+      if (!_containsMonth(monthOptions, detailMonth)) {
+        detailMonth = monthOptions.first;
+      }
+
       final summary = await widget.repo.getDashboardSummary(now);
-      final (from, to) = _range();
+      final (from, to) = switch (_mode) {
+        DashboardMode.monthly => (
+          monthStart(selectedMonth),
+          monthEnd(selectedMonth),
+        ),
+        DashboardMode.yearly => (
+          yearStart(DateTime(_selectedYear, 1, 1)),
+          yearEnd(DateTime(_selectedYear, 1, 1)),
+        ),
+        DashboardMode.custom => (_customFrom, _customTo),
+      };
       final cat = await widget.repo.expenseTotalsByCategory(from: from, to: to);
       final filterOptions = <String>[
         'All',
@@ -206,6 +239,9 @@ class _DashboardPageState extends State<DashboardPage> {
 
       if (!mounted) return;
       setState(() {
+        _availableMonths = monthOptions;
+        _selectedMonth = selectedMonth;
+        _detailMonth = detailMonth;
         _summary = summary;
         _catRows = cat;
         _subRows = sub;
@@ -427,19 +463,14 @@ class _DashboardPageState extends State<DashboardPage> {
                                 decoration: const InputDecoration(
                                   labelText: 'Month',
                                 ),
-                                items: List.generate(24, (i) {
-                                  final d = DateTime(
-                                    DateTime.now().year,
-                                    DateTime.now().month - i,
-                                    1,
-                                  );
-                                  return DropdownMenuItem(
-                                    value: d,
-                                    child: Text(
-                                      '${d.year}-${d.month.toString().padLeft(2, '0')}',
-                                    ),
-                                  );
-                                }),
+                                items: _availableMonths
+                                    .map(
+                                      (d) => DropdownMenuItem(
+                                        value: d,
+                                        child: Text(_monthLabel(d)),
+                                      ),
+                                    )
+                                    .toList(growable: false),
                                 onChanged: (v) => setState(
                                   () => _selectedMonth = v ?? _selectedMonth,
                                 ),
@@ -841,21 +872,18 @@ class _DashboardPageState extends State<DashboardPage> {
                             decoration: const InputDecoration(
                               labelText: 'Month',
                             ),
-                            items: List.generate(24, (i) {
-                              final d = DateTime(
-                                DateTime.now().year,
-                                DateTime.now().month - i,
-                                1,
-                              );
-                              return DropdownMenuItem(
-                                value: d,
-                                child: Text(
-                                  '${d.year}-${d.month.toString().padLeft(2, '0')}',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              );
-                            }),
+                            items: _availableMonths
+                                .map(
+                                  (d) => DropdownMenuItem(
+                                    value: d,
+                                    child: Text(
+                                      _monthLabel(d),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                )
+                                .toList(growable: false),
                             onChanged: (v) => setState(
                               () => _detailMonth = v ?? _detailMonth,
                             ),

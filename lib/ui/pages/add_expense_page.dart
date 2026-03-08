@@ -56,6 +56,16 @@ class _AddExpensePageState extends State<AddExpensePage> {
     DateTime.now().month,
     1,
   );
+  List<DateTime> _availableMonths = const [];
+
+  DateTime _monthOnly(DateTime d) => DateTime(d.year, d.month, 1);
+
+  bool _containsMonth(List<DateTime> months, DateTime target) {
+    return months.any((m) => m.year == target.year && m.month == target.month);
+  }
+
+  String _monthLabel(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}';
 
   @override
   void initState() {
@@ -104,10 +114,18 @@ class _AddExpensePageState extends State<AddExpensePage> {
     try {
       final categories = await widget.repo.getExpenseCategories();
       final events = await widget.repo.getEvents();
+      final months = await widget.repo.getExpenseMonths();
+      final monthOptions = months.isEmpty
+          ? <DateTime>[_monthOnly(DateTime.now())]
+          : months.map(_monthOnly).toList(growable: false);
 
       if (!mounted) return;
 
       setState(() {
+        _availableMonths = monthOptions;
+        if (!_containsMonth(_availableMonths, _filterMonth)) {
+          _filterMonth = _availableMonths.first;
+        }
         _categories = categories;
         if (_selectedCategoryId != null &&
             !categories.any((c) => c.id == _selectedCategoryId)) {
@@ -1146,19 +1164,14 @@ class _AddExpensePageState extends State<AddExpensePage> {
                         value: _filterMonth,
                         isExpanded: true,
                         decoration: const InputDecoration(labelText: 'Month'),
-                        items: List.generate(24, (i) {
-                          final d = DateTime(
-                            DateTime.now().year,
-                            DateTime.now().month - i,
-                            1,
-                          );
-                          return DropdownMenuItem(
-                            value: d,
-                            child: Text(
-                              '${d.year}-${d.month.toString().padLeft(2, '0')}',
-                            ),
-                          );
-                        }),
+                        items: _availableMonths
+                            .map(
+                              (d) => DropdownMenuItem(
+                                value: d,
+                                child: Text(_monthLabel(d)),
+                              ),
+                            )
+                            .toList(growable: false),
                         onChanged: (v) {
                           setState(() {
                             _filterMonth = v ?? _filterMonth;

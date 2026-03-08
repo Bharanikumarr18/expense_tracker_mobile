@@ -43,6 +43,18 @@ class TrackerRepository {
     return double.tryParse(value.toString()) ?? 0;
   }
 
+  DateTime? _parseYearMonth(String? raw) {
+    if (raw == null) return null;
+    final parts = raw.split('-');
+    if (parts.length != 2) return null;
+    final year = int.tryParse(parts[0]);
+    final month = int.tryParse(parts[1]);
+    if (year == null || month == null || month < 1 || month > 12) {
+      return null;
+    }
+    return DateTime(year, month, 1);
+  }
+
   Future<List<Category>> _loadCategoryTree({
     required String categoryTable,
     required String subcategoryTable,
@@ -548,6 +560,25 @@ class TrackerRepository {
         .toList();
   }
 
+  Future<List<DateTime>> getExpenseMonths() async {
+    final db = await _db;
+    final rows = await db.rawQuery('''
+      SELECT SUBSTR(date, 1, 7) AS ym
+      FROM expenses
+      GROUP BY ym
+      ORDER BY ym DESC;
+    ''');
+
+    final months = <DateTime>[];
+    for (final row in rows) {
+      final parsed = _parseYearMonth(row['ym'] as String?);
+      if (parsed != null) {
+        months.add(parsed);
+      }
+    }
+    return months;
+  }
+
   Future<void> updateExpense(
     int id, {
     required DateTime date,
@@ -822,6 +853,25 @@ class TrackerRepository {
           ),
         )
         .toList();
+  }
+
+  Future<List<DateTime>> getIncomeMonths() async {
+    final db = await _db;
+    final rows = await db.rawQuery('''
+      SELECT SUBSTR(date, 1, 7) AS ym
+      FROM income
+      GROUP BY ym
+      ORDER BY ym DESC;
+    ''');
+
+    final months = <DateTime>[];
+    for (final row in rows) {
+      final parsed = _parseYearMonth(row['ym'] as String?);
+      if (parsed != null) {
+        months.add(parsed);
+      }
+    }
+    return months;
   }
 
   Future<void> updateIncome(

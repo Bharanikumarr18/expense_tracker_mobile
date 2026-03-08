@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class TrackerTheme {
-  static const String defaultThemeName = 'Ocean';
+  static const String defaultThemeName = 'Pitch Black';
 
-  static const List<String> themeNames = ['Ocean', 'Slate', 'Emerald'];
+  static const List<String> themeNames = [
+    'Ocean',
+    'Slate',
+    'Emerald',
+    'Pitch Black',
+  ];
 
   static bool isValidTheme(String name) => themeNames.contains(name);
 
@@ -24,6 +29,13 @@ class TrackerTheme {
           accent: const Color(0xFF10B981),
           secondary: const Color(0xFF34D399),
         );
+      case 'Pitch Black':
+        return _build(
+          bg: const Color(0xFF000000),
+          surface: const Color(0xFF080808),
+          accent: const Color(0xFF36D1FF),
+          secondary: const Color(0xFF00E5FF),
+        );
       case 'Ocean':
       default:
         return _build(
@@ -42,6 +54,7 @@ class TrackerTheme {
     required Color secondary,
   }) {
     final base = ThemeData.dark(useMaterial3: true);
+    final fieldFill = Color.alphaBlend(Colors.white.withOpacity(0.04), surface);
 
     final textTheme = GoogleFonts.manropeTextTheme(base.textTheme);
 
@@ -74,7 +87,7 @@ class TrackerTheme {
       inputDecorationTheme: InputDecorationTheme(
         isDense: true,
         filled: true,
-        fillColor: const Color(0xFF0F1524),
+        fillColor: fieldFill,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 12,
           vertical: 14,

@@ -50,6 +50,8 @@ class _ExportPageState extends State<ExportPage> {
   DateTime _expenseTo = DateTime.now();
   DateTime _incomeFrom = DateTime(DateTime.now().year, DateTime.now().month, 1);
   DateTime _incomeTo = DateTime.now();
+  List<DateTime> _expenseMonths = const [];
+  List<DateTime> _incomeMonths = const [];
 
   List<Category> _expenseCategories = const [];
   List<Category> _incomeCategories = const [];
@@ -69,6 +71,15 @@ class _ExportPageState extends State<ExportPage> {
   bool _megaAvailable = false;
   bool _megaChecked = false;
 
+  DateTime _monthOnly(DateTime d) => DateTime(d.year, d.month, 1);
+
+  String _monthLabel(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}';
+
+  bool _containsMonth(List<DateTime> months, DateTime target) {
+    return months.any((m) => m.year == target.year && m.month == target.month);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -80,10 +91,27 @@ class _ExportPageState extends State<ExportPage> {
     final expCats = await widget.repo.getExpenseCategories();
     final incCats = await widget.repo.getIncomeCategories();
     final events = await widget.repo.getEvents();
+    final expenseMonths = await widget.repo.getExpenseMonths();
+    final incomeMonths = await widget.repo.getIncomeMonths();
+    final fallbackMonth = _monthOnly(DateTime.now());
+    final expenseMonthOptions = expenseMonths.isEmpty
+        ? <DateTime>[fallbackMonth]
+        : expenseMonths.map(_monthOnly).toList(growable: false);
+    final incomeMonthOptions = incomeMonths.isEmpty
+        ? <DateTime>[fallbackMonth]
+        : incomeMonths.map(_monthOnly).toList(growable: false);
     if (!mounted) return;
     setState(() {
       _expenseCategories = expCats;
       _incomeCategories = incCats;
+      _expenseMonths = expenseMonthOptions;
+      _incomeMonths = incomeMonthOptions;
+      if (!_containsMonth(_expenseMonths, _expenseMonth)) {
+        _expenseMonth = _expenseMonths.first;
+      }
+      if (!_containsMonth(_incomeMonths, _incomeMonth)) {
+        _incomeMonth = _incomeMonths.first;
+      }
       _events = events;
       _selectedEvent = events.isEmpty ? null : events.first;
       _summaryCategories = expCats.map((e) => e.name).toSet();
@@ -761,6 +789,7 @@ class _ExportPageState extends State<ExportPage> {
   Widget _buildModeFilter({
     required ExportMode mode,
     required ValueChanged<ExportMode> onMode,
+    required List<DateTime> monthOptions,
     required DateTime month,
     required ValueChanged<DateTime> onMonth,
     required int year,
@@ -814,21 +843,18 @@ class _ExportPageState extends State<ExportPage> {
                   value: month,
                   isExpanded: true,
                   decoration: const InputDecoration(labelText: 'Month'),
-                  items: List.generate(24, (i) {
-                    final d = DateTime(
-                      DateTime.now().year,
-                      DateTime.now().month - i,
-                      1,
-                    );
-                    return DropdownMenuItem(
-                      value: d,
-                      child: Text(
-                        '${d.year}-${d.month.toString().padLeft(2, '0')}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    );
-                  }),
+                  items: monthOptions
+                      .map(
+                        (d) => DropdownMenuItem(
+                          value: d,
+                          child: Text(
+                            _monthLabel(d),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
                   onChanged: (v) => onMonth(v ?? month),
                 ),
               ),
@@ -950,6 +976,7 @@ class _ExportPageState extends State<ExportPage> {
                 _buildModeFilter(
                   mode: _expenseMode,
                   onMode: (v) => setState(() => _expenseMode = v),
+                  monthOptions: _expenseMonths,
                   month: _expenseMonth,
                   onMonth: (v) => setState(() => _expenseMonth = v),
                   year: _expenseYear,
@@ -1144,6 +1171,7 @@ class _ExportPageState extends State<ExportPage> {
                 _buildModeFilter(
                   mode: _incomeMode,
                   onMode: (v) => setState(() => _incomeMode = v),
+                  monthOptions: _incomeMonths,
                   month: _incomeMonth,
                   onMonth: (v) => setState(() => _incomeMonth = v),
                   year: _incomeYear,

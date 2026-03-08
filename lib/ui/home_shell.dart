@@ -7,6 +7,7 @@ import 'pages/appliances_page.dart';
 import 'pages/assets_page.dart';
 import 'pages/dashboard_page.dart';
 import 'pages/events_page.dart';
+import 'pages/entries_page.dart';
 import 'pages/export_page.dart';
 import 'pages/import_page.dart';
 import 'pages/income_page.dart';
@@ -42,6 +43,11 @@ class _HomeShellState extends State<HomeShell> {
         'Add Expense',
         Icons.add_circle_outline,
         AddExpensePage(repo: widget.repo),
+      ),
+      _NavItem(
+        'Entries',
+        Icons.table_rows_outlined,
+        EntriesPage(repo: widget.repo),
       ),
       _NavItem(
         'Import',
